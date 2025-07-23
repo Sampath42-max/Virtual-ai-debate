@@ -25,7 +25,7 @@ const AppContent = () => {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       if (user.email) {
         try {
-          const result = await getProfile(); // Use api.ts getProfile function
+          const result = await getProfile(user.email); // Use api.ts getProfile
           if (!result?.success || !result?.data?.user) {
             localStorage.removeItem("user");
             localStorage.removeItem("token");
