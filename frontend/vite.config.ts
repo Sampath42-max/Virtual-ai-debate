@@ -4,7 +4,7 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // Production API URL (Elastic Beanstalk)
-const API_BASE_URL = "http://virtual-ai-debate.ap-south-1.elasticbeanstalk.com";
+const API_BASE_URL = "https://virtual-ai-debate.onrender.com";
 
 export default defineConfig(({ mode }) => ({
   base: "/", // Needed for S3 routing
