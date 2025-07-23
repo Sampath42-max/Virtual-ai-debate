@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Mic, MicOff, User, Bot, Clock, X, Volume2 } from 'lucide-react';
 
 // Constants
-const API_BASE_URL = "http://virtual-ai-debate.ap-south-1.elasticbeanstalk.com/api";
+const API_BASE_URL = "https://virtual-ai-debate.onrender.com/api";
 const ALLOWED_LEVELS = ["Beginner", "Intermediate", "Advanced", "Expert"];
 const MAX_NO_SPEECH_RETRIES = 3;
 const DEBATE_END_BUFFER_SECONDS = 5;
