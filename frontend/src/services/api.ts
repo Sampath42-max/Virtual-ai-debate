@@ -50,9 +50,9 @@ export const login = async (email: string, password: string) => {
 };
 
 // Profile fetch
-export const getProfile = async () => {
+export const getProfile = async (email: string = "") => {
   try {
-    const response = await api.post("/profile", {});
+    const response = await api.post("/profile", { email });
     return response.data;
   } catch (error: any) {
     const err = error?.response?.data || { error: "Failed to load profile", message: "Please try again." };
@@ -77,9 +77,9 @@ export const getDebateResponse = async (message: string, topic: string, stance: 
 };
 
 // Complete Debate
-export const completeDebate = async () => {
+export const completeDebate = async (email: string = "") => {
   try {
-    const response = await api.post("/debate/complete", {});
+    const response = await api.post("/debate/complete", { email });
     return response.data;
   } catch (error: any) {
     const err = error?.response?.data || { error: "Failed to complete debate", message: "Please try again." };
