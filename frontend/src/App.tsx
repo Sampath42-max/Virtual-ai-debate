@@ -10,6 +10,7 @@ import FeedbackPage from "./components/FeedbackPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 import { useToast } from "@/components/ui/use-toast";
+import { getProfile } from "@/services/api";
 
 declare const __API_BASE_URL__: string;
 
@@ -24,16 +25,10 @@ const AppContent = () => {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       if (user.email) {
         try {
-          const response = await fetch(`${__API_BASE_URL__}/api/profile`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: user.email }),
-          });
-
-          const result = await response.json();
-
-          if (!response.ok || !result?.data?.user) {
+          const result = await getProfile(); // Use api.ts getProfile function
+          if (!result?.success || !result?.data?.user) {
             localStorage.removeItem("user");
+            localStorage.removeItem("token");
             toast({
               variant: "destructive",
               title: "Session Expired",
@@ -41,13 +36,14 @@ const AppContent = () => {
             });
             navigate("/login");
           }
-        } catch (err) {
+        } catch (err: any) {
           console.error("Session validation error:", err);
           localStorage.removeItem("user");
+          localStorage.removeItem("token");
           toast({
             variant: "destructive",
-            title: "Session Error",
-            description: "Failed to validate session. Please log in again.",
+            title: err.error || "Session Error",
+            description: err.message || "Failed to validate session. Please log in again.",
           });
           navigate("/login");
         }
