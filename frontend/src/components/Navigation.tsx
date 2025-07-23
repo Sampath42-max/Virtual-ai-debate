@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 
-const API_URL = "http://virtual-ai-debate.ap-south-1.elasticbeanstalk.com";
+const API_URL = "https://virtual-ai-debate.onrender.com";
 
 const Navigation = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
