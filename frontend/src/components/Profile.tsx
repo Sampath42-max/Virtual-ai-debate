@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const API_URL = "http://virtual-ai-debate.ap-south-1.elasticbeanstalk.com/api";
+const API_URL = "https://virtual-ai-debate.onrender.com/api";
 
 const Profile = () => {
   const [user, setUser] = useState<{
