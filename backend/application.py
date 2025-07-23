@@ -11,7 +11,7 @@ import hashlib
 import re
 import atexit
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -19,6 +19,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from google.api_core.exceptions import ResourceExhausted, InvalidArgument
+import jwt
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -46,9 +47,7 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 CORS(application, resources={r"/*": {
-    "origins": [
-        "https://virtual-ai-debate.vercel.app"
-    ],
+    "origins": ["https://virtual-ai-debate.vercel.app"],
     "supports_credentials": True,
     "methods": ["GET", "POST", "OPTIONS"],
     "allow_headers": ["Content-Type", "Authorization"]
@@ -57,6 +56,7 @@ CORS(application, resources={r"/*": {
 # Database Configuration
 application.config["MONGO_URI"] = os.getenv("MONGO_URI")
 if not application.config["MONGO_URI"]:
+    logger.error("MONGO_URI not set in environment. Check .env file or Render environment variables.")
     raise EnvironmentError("MONGO_URI not set in environment.")
 
 mongo = PyMongo(application, retryWrites=True, connectTimeoutMS=30000)
@@ -69,6 +69,12 @@ try:
 except Exception as e:
     logger.error(f"Index creation failed: {e}")
 
+# JWT Configuration
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not JWT_SECRET_KEY:
+    logger.error("JWT_SECRET_KEY not set in environment. Check .env file or Render environment variables.")
+    raise EnvironmentError("JWT_SECRET_KEY not set in environment.")
+
 # Audio Configuration
 TEMP_AUDIO_DIR = os.path.join(os.getcwd(), "temp_audio")
 os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
@@ -76,6 +82,7 @@ os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 # Gemini AI Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
+    logger.error("GEMINI_API_KEY not set in environment. Check .env file or Render environment variables.")
     raise EnvironmentError("GEMINI_API_KEY not set in environment.")
 
 llm = ChatGoogleGenerativeAI(
@@ -265,7 +272,7 @@ def signup():
 
         # Create user
         hashed = generate_password_hash(password)
-        mongo.db.users.insert_one({
+        user_data = {
             "name": name,
             "email": email,
             "password": hashed,
@@ -273,13 +280,25 @@ def signup():
             "profile_picture": "",
             "created_at": datetime.utcnow(),
             "last_login": None
-        })
+        }
+        mongo.db.users.insert_one(user_data)
+
+        # Generate JWT token
+        token = jwt.encode(
+            {
+                "email": email,
+                "exp": datetime.utcnow() + timedelta(hours=24)
+            },
+            JWT_SECRET_KEY,
+            algorithm="HS256"
+        )
 
         return standard_response(True, "Registration successful", {
             "user": {
                 "name": name,
                 "email": email
-            }
+            },
+            "token": token
         }, None, 201)
 
     except Exception as e:
@@ -303,6 +322,16 @@ def login():
         if not user or not check_password_hash(user['password'], password):
             return standard_response(False, "Invalid credentials", None, "Authentication failed", 401)
 
+        # Generate JWT token
+        token = jwt.encode(
+            {
+                "email": email,
+                "exp": datetime.utcnow() + timedelta(hours=24)
+            },
+            JWT_SECRET_KEY,
+            algorithm="HS256"
+        )
+
         # Update last login
         mongo.db.users.update_one(
             {"email": email},
@@ -315,7 +344,8 @@ def login():
                 "email": user['email'],
                 "debates_attended": user.get('debates_attended', 0),
                 "profile_picture": user.get('profile_picture', '')
-            }
+            },
+            "token": token
         })
 
     except Exception as e:
@@ -371,8 +401,8 @@ def get_debate_response():
 
         if not audio_file:
             return standard_response(True, "AI response generated (no audio)", {
-                "message": ai_response
-            })
+            "message": ai_response
+        })
 
         return standard_response(True, "AI response generated", {
             "message": ai_response,
