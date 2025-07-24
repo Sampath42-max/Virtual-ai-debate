@@ -1,6 +1,7 @@
+// Updated api.ts
 import axios from 'axios';
 
-// NOTE: API_URL uses the /api proxy. For production, set VITE_API_BASE_URL in your .env file. Falls back to /api for development proxy.
+// Prefer environment variable or fallback to '/api' for local proxy
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const signup = async (name: string, email: string, password: string, confirmPassword: string) => {
@@ -13,7 +14,7 @@ export const signup = async (name: string, email: string, password: string, conf
     });
     return response.data as { user: { name: string; email: string; profile_picture: string } };
   } catch (error: any) {
-    throw error.response.data;
+    throw error.response?.data || { error: "Signup failed" };
   }
 };
 
@@ -25,7 +26,7 @@ export const login = async (email: string, password: string) => {
     });
     return response.data as { user: { name: string; email: string; profile_picture: string } };
   } catch (error: any) {
-    throw error.response.data;
+    throw error.response?.data || { error: "Login failed" };
   }
 };
 
@@ -34,6 +35,6 @@ export const getDebateTip = async () => {
     const response = await axios.get(`${API_URL}/debate`);
     return response.data as { tip: string };
   } catch (error: any) {
-    throw error.response.data;
+    throw error.response?.data || { error: "Failed to fetch tip" };
   }
 };
