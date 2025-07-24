@@ -1,3 +1,4 @@
+// Updated App.tsx
 import { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
 import Navigation from "./components/Navigation";
@@ -11,7 +12,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { useToast } from "@/components/ui/use-toast";
 import NotFound from "./pages/NotFound";
 
-const API_URL = '/api'; // Use the same proxy as api.js
+const API_URL = import.meta.env.VITE_API_BASE_URL;
 
 const AppContent = () => {
   const navigate = useNavigate();
