@@ -12,6 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+const API_URL = '/api'; // Use the same proxy as api.js
+
 const Profile = () => {
   const [user, setUser] = useState<{
     name: string;
@@ -33,7 +35,7 @@ const Profile = () => {
       }
 
       try {
-        const response = await fetch("http://localhost:5000/profile", {
+        const response = await fetch(`${API_URL}/profile`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: storedUser.email }),
