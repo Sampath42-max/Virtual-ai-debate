@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// NOTE: API_URL uses the /api proxy. For production, set VITE_API_BASE_URL in your .env file and use it in fetch/axios calls if needed.
-const API_URL = '/api'; // Proxy will handle the routing to http://localhost:5000
+// NOTE: API_URL uses the /api proxy. For production, set VITE_API_BASE_URL in your .env file. Falls back to /api for development proxy.
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const signup = async (name, email, password, confirmPassword) => {
   try {
@@ -31,7 +31,7 @@ export const login = async (email, password) => {
 
 export const getDebateTip = async () => {
   try {
-    const response = await axios.get(`${API_URL}/debate`); // Note: Changed to /debate to match your backend route
+    const response = await axios.get(`${API_URL}/debate`);
     return response.data;
   } catch (error) {
     throw error.response.data;
