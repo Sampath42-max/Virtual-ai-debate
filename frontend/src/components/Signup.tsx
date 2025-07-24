@@ -4,6 +4,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { signup } from "@/api"; // Import signup function from api.js
 
 const Signup = () => {
   const [name, setName] = useState("");
@@ -24,36 +25,23 @@ const Signup = () => {
       return;
     }
     try {
-      const response = await fetch("http://localhost:5000/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, confirm_password: confirmPassword }),
+      const data = await signup(name, email, password, confirmPassword);
+      localStorage.setItem("user", JSON.stringify({
+        name: data.user.name,
+        email: data.user.email,
+        profile_picture: data.user.profile_picture
+      }));
+      toast({
+        title: "Signup Successful",
+        description: "Account created! Redirecting to topics.",
       });
-      const data = await response.json();
-      if (response.ok) {
-        localStorage.setItem("user", JSON.stringify({
-          name: data.user.name,
-          email: data.user.email,
-          profile_picture: data.user.profile_picture
-        }));
-        toast({
-          title: "Signup Successful",
-          description: "Account created! Redirecting to topics.",
-        });
-        navigate("/topics");
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Signup Failed",
-          description: data.error || "Failed to register user",
-        });
-      }
-    } catch (err) {
+      navigate("/topics");
+    } catch (err: any) {
       console.error("Signup error:", err);
       toast({
         variant: "destructive",
         title: "Signup Error",
-        description: "Failed to connect to the server. Please try again.",
+        description: err.error || "Failed to connect to the server. Please try again.",
       });
     }
   };
