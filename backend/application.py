@@ -192,18 +192,21 @@ def signup():
     logger.info("Signup endpoint called")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
     logger.info(f"All headers: {dict(request.headers)}")
-    # Read body from WSGI input stream
+    # Try WSGI input stream, fallback to get_data
     try:
         raw_data = request.stream.read().decode('utf-8')
         logger.info(f"Raw request data from stream: {raw_data}")
         if not raw_data or not raw_data.strip():
-            logger.error("No valid raw data received from stream")
+            raw_data = request.get_data(as_text=True)
+            logger.info(f"Fallback raw data from get_data: {raw_data}")
+        if not raw_data or not raw_data.strip():
+            logger.error("No valid raw data received")
             return jsonify({"error": "No valid request body received"}), 400
         import json
         data = json.loads(raw_data)
         logger.info(f"Manually parsed JSON: {data}")
     except Exception as e:
-        logger.error(f"Failed to parse JSON from stream: {str(e)}")
+        logger.error(f"Failed to parse JSON: {str(e)}")
         return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
 
     name = data.get('name')
@@ -256,18 +259,21 @@ def login():
     logger.info("Login endpoint called")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
     logger.info(f"All headers: {dict(request.headers)}")
-    # Read body from WSGI input stream
+    # Try WSGI input stream, fallback to get_data
     try:
         raw_data = request.stream.read().decode('utf-8')
         logger.info(f"Raw request data from stream: {raw_data}")
         if not raw_data or not raw_data.strip():
-            logger.error("No valid raw data received from stream")
+            raw_data = request.get_data(as_text=True)
+            logger.info(f"Fallback raw data from get_data: {raw_data}")
+        if not raw_data or not raw_data.strip():
+            logger.error("No valid raw data received")
             return jsonify({"error": "No valid request body received"}), 400
         import json
         data = json.loads(raw_data)
         logger.info(f"Manually parsed JSON: {data}")
     except Exception as e:
-        logger.error(f"Failed to parse JSON from stream: {str(e)}")
+        logger.error(f"Failed to parse JSON: {str(e)}")
         return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
 
     email = data.get('email')
