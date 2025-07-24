@@ -12,6 +12,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { useToast } from "@/components/ui/use-toast";
 import NotFound from "./pages/NotFound";
 
+
 const API_URL = import.meta.env.VITE_API_BASE_URL;
 
 const AppContent = () => {
