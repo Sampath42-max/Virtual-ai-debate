@@ -15,7 +15,7 @@ interface DebateState {
   level: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://virtual-ai-debate.onrender.com";
 
 const LiveDebate = () => {
   const location = useLocation();
@@ -49,7 +49,7 @@ const LiveDebate = () => {
 
     const recognition = new window.webkitSpeechRecognition();
     recognition.continuous = true;
-    recognition.interimResults = true;
+    recognition.intermResults = true;
     recognition.lang = "en-US";
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
@@ -209,7 +209,7 @@ const LiveDebate = () => {
       }
     } catch (error: any) {
       console.error("API error:", error);
-      let errorMessage = "Failed to connect to the server. Please ensure the backend is running on " + API_BASE_URL + ".";
+      let errorMessage = `Failed to connect to the server. Please ensure the backend is running on ${API_BASE_URL}.`;
       if (error.name === "AbortError") {
         errorMessage = "API request timed out after 20 seconds. Please try again.";
       } else if (error.message && error.message.includes("CORS")) {
