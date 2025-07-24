@@ -11,6 +11,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { useToast } from "@/components/ui/use-toast";
 import NotFound from "./pages/NotFound";
 
+const API_URL = '/api'; // Use the same proxy as api.js
+
 const AppContent = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -20,7 +22,7 @@ const AppContent = () => {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       if (user.email) {
         try {
-          const response = await fetch("http://localhost:5000/profile", {
+          const response = await fetch(`${API_URL}/profile`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email: user.email }),
