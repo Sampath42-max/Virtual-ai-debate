@@ -14,7 +14,6 @@ from langchain_core.output_parsers import StrOutputParser
 from google.api_core.exceptions import ResourceExhausted, InvalidArgument
 import hashlib
 import re
-from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -30,15 +29,17 @@ CORS(application, resources={
     r"/profile": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]}
 })
 
-# Load environment variables from .env file
-load_dotenv()
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+# Hardcoded environment variables
+MONGO_URI = "mongodb+srv://sampathkumar4008:ea9IEuPRxnWyrcHE@debateai.mne98el.mongodb.net/debateai?retryWrites=true&w=majority&appName=DEBATEAI"
+GEMINI_API_KEY = "AIzaSyDinKJfSmvBw8BOsbhoUnrm-RLzRv1Ub44"
+BACKEND_URL = "https://virtual-ai-debate.onrender.com"
+PORT = 5000
 
 # MongoDB configuration
-application.config["MONGO_URI"] = os.getenv("MONGO_URI")
+application.config["MONGO_URI"] = MONGO_URI
 if not application.config["MONGO_URI"]:
-    logger.critical("MONGO_URI not found in environment. Please check your .env file.")
-    raise EnvironmentError("Missing MONGO_URI in environment.")
+    logger.critical("MONGO_URI not configured. Please check the code.")
+    raise EnvironmentError("Missing MONGO_URI configuration.")
 
 mongo = PyMongo(application)
 
@@ -53,14 +54,6 @@ except Exception as e:
 # Create temporary directory for audio files
 TEMP_AUDIO_DIR = os.path.join(os.getcwd(), "temp_audio")
 os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
-
-# Load environment variables
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-BACKEND_URL = os.getenv("BACKEND_URL", "https://virtual-ai-debate.onrender.com")
-PORT = int(os.getenv("PORT", 5000))
-if not GEMINI_API_KEY:
-    logger.critical("GEMINI_API_KEY not found in environment. Please check your .env file.")
-    raise EnvironmentError("Missing GEMINI_API_KEY in environment.")
 
 llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-flash",
@@ -197,24 +190,20 @@ def get_tts_audio(text):
 @application.route('/signup', methods=['POST'])
 def signup():
     logger.info("Signup endpoint called")
-    raw_data = request.get_data(as_text=True)
-    logger.info(f"Raw request data: {raw_data}")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
     logger.info(f"All headers: {dict(request.headers)}")
-    # Manually read JSON body
+    # Read body from WSGI input stream
     try:
-        data = request.get_json(silent=True) or {}
-        if not data:
-            logger.info(f"Raw data for parsing: {raw_data}")
-            if raw_data and raw_data.strip():
-                import json
-                data = json.loads(raw_data)
-                logger.info(f"Manually parsed JSON: {data}")
-            else:
-                logger.error("No valid raw data received")
-                return jsonify({"error": "No valid request body received"}), 400
+        raw_data = request.stream.read().decode('utf-8')
+        logger.info(f"Raw request data from stream: {raw_data}")
+        if not raw_data or not raw_data.strip():
+            logger.error("No valid raw data received from stream")
+            return jsonify({"error": "No valid request body received"}), 400
+        import json
+        data = json.loads(raw_data)
+        logger.info(f"Manually parsed JSON: {data}")
     except Exception as e:
-        logger.error(f"Failed to parse JSON manually: {str(e)}")
+        logger.error(f"Failed to parse JSON from stream: {str(e)}")
         return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
 
     name = data.get('name')
@@ -261,28 +250,24 @@ def signup():
     except Exception as e:
         logger.error(f"MongoDB insert error: {str(e)}")
         return jsonify({"error": "Failed to register user"}), 500
-        
+
 @application.route('/login', methods=['POST'])
 def login():
     logger.info("Login endpoint called")
-    raw_data = request.get_data(as_text=True)
-    logger.info(f"Raw request data: {raw_data}")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
     logger.info(f"All headers: {dict(request.headers)}")
-    # Manually read JSON body
+    # Read body from WSGI input stream
     try:
-        data = request.get_json(silent=True) or {}
-        if not data:
-            logger.info(f"Raw data for parsing: {raw_data}")
-            if raw_data and raw_data.strip():
-                import json
-                data = json.loads(raw_data)
-                logger.info(f"Manually parsed JSON: {data}")
-            else:
-                logger.error("No valid raw data received")
-                return jsonify({"error": "No valid request body received"}), 400
+        raw_data = request.stream.read().decode('utf-8')
+        logger.info(f"Raw request data from stream: {raw_data}")
+        if not raw_data or not raw_data.strip():
+            logger.error("No valid raw data received from stream")
+            return jsonify({"error": "No valid request body received"}), 400
+        import json
+        data = json.loads(raw_data)
+        logger.info(f"Manually parsed JSON: {data}")
     except Exception as e:
-        logger.error(f"Failed to parse JSON manually: {str(e)}")
+        logger.error(f"Failed to parse JSON from stream: {str(e)}")
         return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
 
     email = data.get('email')
@@ -313,13 +298,26 @@ def login():
     except Exception as e:
         logger.error(f"MongoDB query error: {str(e)}")
         return jsonify({"error": "Failed to login"}), 500
-        
+
 @application.route('/profile', methods=['POST'])
 def profile():
     logger.info("Profile endpoint called")
-    logger.info(f"Raw request data: {request.get_data(as_text=True)}")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
-    data = request.get_json(silent=True) or {}
+    logger.info(f"All headers: {dict(request.headers)}")
+    # Read body from WSGI input stream
+    try:
+        raw_data = request.stream.read().decode('utf-8')
+        logger.info(f"Raw request data from stream: {raw_data}")
+        if not raw_data or not raw_data.strip():
+            logger.error("No valid raw data received from stream")
+            return jsonify({"error": "No valid request body received"}), 400
+        import json
+        data = json.loads(raw_data)
+        logger.info(f"Manually parsed JSON: {data}")
+    except Exception as e:
+        logger.error(f"Failed to parse JSON from stream: {str(e)}")
+        return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+
     email = data.get('email')
 
     if not email:
@@ -350,17 +348,30 @@ def profile():
 @application.route('/api/debate/response', methods=['POST'])
 def get_debate_response():
     logger.info("Debate response endpoint called")
-    start_time = time.time()
-    logger.info(f"Raw request data: {request.get_data(as_text=True)}")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
-    data = request.get_json(silent=True) or {}
+    logger.info(f"All headers: {dict(request.headers)}")
+    # Read body from WSGI input stream
+    try:
+        raw_data = request.stream.read().decode('utf-8')
+        logger.info(f"Raw request data from stream: {raw_data}")
+        if not raw_data or not raw_data.strip():
+            logger.error("No valid raw data received from stream")
+            return jsonify({"error": "No valid request body received"}), 400
+        import json
+        data = json.loads(raw_data)
+        logger.info(f"Manually parsed JSON: {data}")
+    except Exception as e:
+        logger.error(f"Failed to parse JSON from stream: {str(e)}")
+        return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+
+    start_time = time.time()
     user_message = data.get('message')
     topic = data.get('topic')
     stance = data.get('stance')
     level = data.get('level')
 
     if not all([user_message, topic, stance, level]):
-        logger.error(f"Missing required fields in debate response request: message={user_message}, topic={topic}, stance={stance}, level={level}")
+        logger.error(f"Missing required fields in debate response request: {data}")
         return jsonify({"error": "Message, topic, stance, and level are required"}), 400
 
     gemini_start = time.time()
@@ -400,9 +411,22 @@ def serve_audio(filename):
 @application.route('/api/debate/complete', methods=['POST'])
 def complete_debate():
     logger.info("Debate completion endpoint called")
-    logger.info(f"Raw request data: {request.get_data(as_text=True)}")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
-    data = request.get_json(silent=True) or {}
+    logger.info(f"All headers: {dict(request.headers)}")
+    # Read body from WSGI input stream
+    try:
+        raw_data = request.stream.read().decode('utf-8')
+        logger.info(f"Raw request data from stream: {raw_data}")
+        if not raw_data or not raw_data.strip():
+            logger.error("No valid raw data received from stream")
+            return jsonify({"error": "No valid request body received"}), 400
+        import json
+        data = json.loads(raw_data)
+        logger.info(f"Manually parsed JSON: {data}")
+    except Exception as e:
+        logger.error(f"Failed to parse JSON from stream: {str(e)}")
+        return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+
     email = data.get('email')
 
     if not email:
