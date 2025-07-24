@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 
+const API_URL = '/api'; // Use the same proxy as api.js
+
 const Navigation = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const navigate = useNavigate();
@@ -20,7 +22,7 @@ const Navigation = () => {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       if (user.email) {
         try {
-          const response = await fetch("http://localhost:5000/profile", {
+          const response = await fetch(`${API_URL}/profile`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email: user.email }),
