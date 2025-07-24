@@ -1,16 +1,12 @@
+// Updated Navigation.tsx with env-based API
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Menu } from "lucide-react";
 import Profile from "./Profile";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 
-// Use the same dynamic API_URL as in api.ts
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const Navigation = () => {
@@ -73,41 +69,13 @@ const Navigation = () => {
             DebateAI
           </NavLink>
           <div className="hidden md:flex gap-4">
-            <NavLink
-              to="/"
-              className={({ isActive }) =>
-                `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
-              }
-            >
-              Home
-            </NavLink>
+            <NavLink to="/" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Home</NavLink>
             {isLoggedIn ? (
-              <NavLink
-                to="/topics"
-                className={({ isActive }) =>
-                  `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
-                }
-              >
-                Debate
-              </NavLink>
+              <NavLink to="/topics" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Debate</NavLink>
             ) : (
               <>
-                <NavLink
-                  to="/login"
-                  className={({ isActive }) =>
-                    `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
-                  }
-                >
-                  Login
-                </NavLink>
-                <NavLink
-                  to="/signup"
-                  className={({ isActive }) =>
-                    `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
-                  }
-                >
-                  Signup
-                </NavLink>
+                <NavLink to="/login" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Login</NavLink>
+                <NavLink to="/signup" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Signup</NavLink>
               </>
             )}
           </div>
@@ -127,41 +95,13 @@ const Navigation = () => {
           </SheetTrigger>
           <SheetContent className="bg-gray-800 text-white border-gray-700">
             <div className="flex flex-col gap-4 mt-4">
-              <NavLink
-                to="/"
-                className={({ isActive }) =>
-                  `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
-                }
-              >
-                Home
-              </NavLink>
+              <NavLink to="/" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Home</NavLink>
               {isLoggedIn ? (
-                <NavLink
-                  to="/topics"
-                  className={({ isActive }) =>
-                    `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
-                  }
-                >
-                  Debate
-                </NavLink>
+                <NavLink to="/topics" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Debate</NavLink>
               ) : (
                 <>
-                  <NavLink
-                    to="/login"
-                    className={({ isActive }) =>
-                      `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
-                    }
-                  >
-                    Login
-                  </NavLink>
-                  <NavLink
-                    to="/signup"
-                    className={({ isActive }) =>
-                      `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
-                    }
-                  >
-                    Signup
-                  </NavLink>
+                  <NavLink to="/login" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Login</NavLink>
+                  <NavLink to="/signup" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Signup</NavLink>
                 </>
               )}
             </div>
