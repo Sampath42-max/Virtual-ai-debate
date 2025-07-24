@@ -200,15 +200,18 @@ def signup():
     logger.info(f"Raw request data: {request.get_data(as_text=True)}")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
     logger.info(f"All headers: {dict(request.headers)}")
-    # Force JSON parsing with error handling
-    data = request.get_json(silent=True) or {}
-    if not data:
-        try:
-            data = request.get_json(force=True)
-            logger.info(f"Forced JSON data: {data}")
-        except Exception as e:
-            logger.error(f"Failed to parse JSON: {str(e)}")
-            return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+    # Manually read JSON body
+    try:
+        data = request.get_json(silent=True) or {}
+        if not data:
+            raw_data = request.get_data(as_text=True)
+            logger.info(f"Raw data for parsing: {raw_data}")
+            import json
+            data = json.loads(raw_data) if raw_data else {}
+            logger.info(f"Manually parsed JSON: {data}")
+    except Exception as e:
+        logger.error(f"Failed to parse JSON manually: {str(e)}")
+        return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
 
     name = data.get('name')
     email = data.get('email')
@@ -254,22 +257,25 @@ def signup():
     except Exception as e:
         logger.error(f"MongoDB insert error: {str(e)}")
         return jsonify({"error": "Failed to register user"}), 500
-
+        
 @application.route('/login', methods=['POST'])
 def login():
     logger.info("Login endpoint called")
     logger.info(f"Raw request data: {request.get_data(as_text=True)}")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
     logger.info(f"All headers: {dict(request.headers)}")
-    # Force JSON parsing with error handling
-    data = request.get_json(silent=True) or {}
-    if not data:
-        try:
-            data = request.get_json(force=True)
-            logger.info(f"Forced JSON data: {data}")
-        except Exception as e:
-            logger.error(f"Failed to parse JSON: {str(e)}")
-            return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+    # Manually read JSON body
+    try:
+        data = request.get_json(silent=True) or {}
+        if not data:
+            raw_data = request.get_data(as_text=True)
+            logger.info(f"Raw data for parsing: {raw_data}")
+            import json
+            data = json.loads(raw_data) if raw_data else {}
+            logger.info(f"Manually parsed JSON: {data}")
+    except Exception as e:
+        logger.error(f"Failed to parse JSON manually: {str(e)}")
+        return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
 
     email = data.get('email')
     password = data.get('password')
@@ -299,7 +305,6 @@ def login():
     except Exception as e:
         logger.error(f"MongoDB query error: {str(e)}")
         return jsonify({"error": "Failed to login"}), 500
-
 @application.route('/profile', methods=['POST'])
 def profile():
     logger.info("Profile endpoint called")
