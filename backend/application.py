@@ -24,15 +24,22 @@ application = Flask(__name__)
 
 # Enable CORS for all required endpoints
 CORS(application, resources={
-    r"/api/*": {"origins": "http://localhost:8080"},
-    r"/signup": {"origins": "http://localhost:8080"},
-    r"/login": {"origins": "http://localhost:8080"},
-    r"/profile": {"origins": "http://localhost:8080"}
+    r"/api/*": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
+    r"/signup": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
+    r"/login": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
+    r"/profile": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]}
 })
 
+# Load environment variables from .env file
+load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 # MongoDB configuration
-application.config["MONGO_URI"] = "mongodb+srv://sampathkumar4008:ea9IEuPRxnWyrcHE@debateai.mne98el.mongodb.net/debateai?retryWrites=true&w=majority&appName=DEBATEAI"
+application.config["MONGO_URI"] = os.getenv("MONGO_URI")
+if not application.config["MONGO_URI"]:
+    logger.critical("MONGO_URI not found in environment. Please check your .env file.")
+    raise EnvironmentError("Missing MONGO_URI in environment.")
+
 mongo = PyMongo(application)
 
 # Verify MongoDB connection
@@ -47,12 +54,7 @@ except Exception as e:
 TEMP_AUDIO_DIR = os.path.join(os.getcwd(), "temp_audio")
 os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 
-
-# Load environment variables from .env file
-load_dotenv()
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
-
-
+# Load Gemini API key
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     logger.critical("GEMINI_API_KEY not found in environment. Please check your .env file.")
@@ -65,7 +67,6 @@ llm = ChatGoogleGenerativeAI(
     temperature=0.7,
     max_output_tokens=150
 )
-
 
 prompt_template = PromptTemplate(
     input_variables=["topic", "stance", "user_message", "level"],
@@ -335,7 +336,7 @@ def get_debate_response():
 
     response_data = {
         "message": ai_response,
-        "audio_url": f"http://localhost:5000/api/debate/audio/{os.path.basename(audio_file)}"
+        "audio_url": f"{os.getenv('BACKEND_URL', 'http://localhost:5000')}/api/debate/audio/{os.path.basename(audio_file)}"
     }
     logger.info(f"Total response time: {time.time() - start_time:.2f} seconds: {response_data}")
     return jsonify(response_data), 200
