@@ -199,14 +199,24 @@ def signup():
     logger.info("Signup endpoint called")
     logger.info(f"Raw request data: {request.get_data(as_text=True)}")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
+    logger.info(f"All headers: {dict(request.headers)}")
+    # Force JSON parsing with error handling
     data = request.get_json(silent=True) or {}
+    if not data:
+        try:
+            data = request.get_json(force=True)
+            logger.info(f"Forced JSON data: {data}")
+        except Exception as e:
+            logger.error(f"Failed to parse JSON: {str(e)}")
+            return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+
     name = data.get('name')
     email = data.get('email')
     password = data.get('password')
     confirm_password = data.get('confirm_password')
 
     if not all([name, email, password, confirm_password]):
-        logger.error("Missing required fields in signup request")
+        logger.error(f"Missing required fields in signup request: {data}")
         return jsonify({"error": "All fields are required"}), 400
     if password != confirm_password:
         logger.error("Passwords do not match")
@@ -250,12 +260,22 @@ def login():
     logger.info("Login endpoint called")
     logger.info(f"Raw request data: {request.get_data(as_text=True)}")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
+    logger.info(f"All headers: {dict(request.headers)}")
+    # Force JSON parsing with error handling
     data = request.get_json(silent=True) or {}
+    if not data:
+        try:
+            data = request.get_json(force=True)
+            logger.info(f"Forced JSON data: {data}")
+        except Exception as e:
+            logger.error(f"Failed to parse JSON: {str(e)}")
+            return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+
     email = data.get('email')
     password = data.get('password')
 
     if not all([email, password]):
-        logger.error("Missing email or password in login request")
+        logger.error(f"Missing email or password in login request: {data}")
         return jsonify({"error": "Email and password are required"}), 400
 
     try:
