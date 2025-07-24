@@ -54,8 +54,10 @@ except Exception as e:
 TEMP_AUDIO_DIR = os.path.join(os.getcwd(), "temp_audio")
 os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 
-# Load Gemini API key
+# Load environment variables
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+BACKEND_URL = os.getenv("BACKEND_URL", "https://virtual-ai-debate.onrender.com")
+PORT = int(os.getenv("PORT", 5000))
 if not GEMINI_API_KEY:
     logger.critical("GEMINI_API_KEY not found in environment. Please check your .env file.")
     raise EnvironmentError("Missing GEMINI_API_KEY in environment.")
@@ -105,14 +107,12 @@ def sanitize_input(text):
     if not isinstance(text, str):
         logger.error(f"Invalid input type: {type(text)}")
         return ""
-    # Remove non-printable ASCII characters and normalize whitespace
     text = re.sub(r'[^\x20-\x7E]', '', text)
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
 def get_gemini_response(user_message, topic, stance, level):
     logger.info(f"Generating Gemini response for topic: {topic}, stance: {stance}, level: {level}, message: {user_message}")
-    # Sanitize inputs
     user_message = sanitize_input(user_message)
     topic = sanitize_input(topic)
     stance = sanitize_input(stance)
@@ -197,7 +197,9 @@ def get_tts_audio(text):
 @application.route('/signup', methods=['POST'])
 def signup():
     logger.info("Signup endpoint called")
-    data = request.get_json()
+    logger.info(f"Raw request data: {request.get_data(as_text=True)}")
+    logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
+    data = request.get_json(silent=True) or {}
     name = data.get('name')
     email = data.get('email')
     password = data.get('password')
@@ -246,7 +248,9 @@ def signup():
 @application.route('/login', methods=['POST'])
 def login():
     logger.info("Login endpoint called")
-    data = request.get_json()
+    logger.info(f"Raw request data: {request.get_data(as_text=True)}")
+    logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
+    data = request.get_json(silent=True) or {}
     email = data.get('email')
     password = data.get('password')
 
@@ -279,7 +283,9 @@ def login():
 @application.route('/profile', methods=['POST'])
 def profile():
     logger.info("Profile endpoint called")
-    data = request.get_json()
+    logger.info(f"Raw request data: {request.get_data(as_text=True)}")
+    logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
+    data = request.get_json(silent=True) or {}
     email = data.get('email')
 
     if not email:
@@ -311,7 +317,9 @@ def profile():
 def get_debate_response():
     logger.info("Debate response endpoint called")
     start_time = time.time()
-    data = request.get_json()
+    logger.info(f"Raw request data: {request.get_data(as_text=True)}")
+    logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
+    data = request.get_json(silent=True) or {}
     user_message = data.get('message')
     topic = data.get('topic')
     stance = data.get('stance')
@@ -321,12 +329,10 @@ def get_debate_response():
         logger.error(f"Missing required fields in debate response request: message={user_message}, topic={topic}, stance={stance}, level={level}")
         return jsonify({"error": "Message, topic, stance, and level are required"}), 400
 
-    # Generate AI response
     gemini_start = time.time()
     ai_response = get_gemini_response(user_message, topic, stance, level)
     logger.info(f"Gemini response time: {time.time() - gemini_start:.2f} seconds")
 
-    # Generate audio
     audio_start = time.time()
     audio_file = get_tts_audio(ai_response)
     if not audio_file:
@@ -336,7 +342,7 @@ def get_debate_response():
 
     response_data = {
         "message": ai_response,
-        "audio_url": f"{os.getenv('BACKEND_URL', 'http://localhost:5000')}/api/debate/audio/{os.path.basename(audio_file)}"
+        "audio_url": f"{BACKEND_URL}/api/debate/audio/{os.path.basename(audio_file)}"
     }
     logger.info(f"Total response time: {time.time() - start_time:.2f} seconds: {response_data}")
     return jsonify(response_data), 200
@@ -360,7 +366,9 @@ def serve_audio(filename):
 @application.route('/api/debate/complete', methods=['POST'])
 def complete_debate():
     logger.info("Debate completion endpoint called")
-    data = request.get_json()
+    logger.info(f"Raw request data: {request.get_data(as_text=True)}")
+    logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
+    data = request.get_json(silent=True) or {}
     email = data.get('email')
 
     if not email:
@@ -390,22 +398,6 @@ def index():
     logger.info("Root endpoint called")
     return jsonify({"message": "Welcome to DebateAI API"}), 200
 
-def run_server():
-    max_attempts = 3
-    for attempt in range(max_attempts):
-        try:
-            logger.info(f"Attempting to start server (attempt {attempt + 1})")
-            application.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
-            break
-        except socket.error as e:
-            logger.error(f"Server startup failed: {str(e)}")
-            if attempt < max_attempts - 1:
-                logger.info(f"Retrying in 2 seconds...")
-                time.sleep(2)
-            else:
-                logger.error("Failed to start server after maximum attempts")
-                raise
-
 if __name__ == '__main__':
-    logger.info("Starting Flask server")
-    application.run(debug=True, host='0.0.0.0', port=5000)
+    logger.info("Starting Flask server for local development")
+    application.run(debug=True, host='0.0.0.0', port=PORT)
