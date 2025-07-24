@@ -1,1 +1,1 @@
-web: gunicorn --workers 4 --timeout 120 application:application
+web: gunicorn --workers 4 --timeout 120 --max-request-size 16777216 --log-level debug application:application
