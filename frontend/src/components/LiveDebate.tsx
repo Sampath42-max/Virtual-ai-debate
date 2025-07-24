@@ -1,14 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Mic, MicOff, User, Bot, Clock, X, Volume2 } from 'lucide-react';
+import { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Mic, MicOff, User, Bot, Clock, X } from "lucide-react";
 
-// Constants
-const API_BASE_URL = "https://virtual-ai-debate.onrender.com/api";
-const ALLOWED_LEVELS = ["Beginner", "Intermediate", "Advanced", "Expert"];
-const MAX_NO_SPEECH_RETRIES = 3;
-const DEBATE_END_BUFFER_SECONDS = 5;
-
-// Types
 interface DebateMessage {
   speaker: "user" | "ai";
   message: string;
@@ -22,22 +15,13 @@ interface DebateState {
   level: string;
 }
 
-interface PerformanceData {
-  totalMessages: number;
-  totalWords: number;
-  avgResponseTime: number;
-  topic: string;
-  duration: number;
-  level: string;
-}
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 
 const LiveDebate = () => {
-  // Hooks
   const location = useLocation();
   const navigate = useNavigate();
   const debateState = location.state as DebateState | null;
 
-  // State
   const [messages, setMessages] = useState<DebateMessage[]>([]);
   const [isUserSpeaking, setIsUserSpeaking] = useState(false);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
@@ -50,38 +34,16 @@ const LiveDebate = () => {
   const [textInput, setTextInput] = useState("");
   const [isLoadingResponse, setIsLoadingResponse] = useState(false);
   const [aiAudioUrl, setAiAudioUrl] = useState<string | null>(null);
-  const [micPermissionDenied, setMicPermissionDenied] = useState(false);
-  const [noSpeechRetryCount, setNoSpeechRetryCount] = useState(0);
-  const [isDebateEnding, setIsDebateEnding] = useState(false);
 
-  // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Check microphone permissions
-  const checkMicPermissions = useCallback(async (): Promise<boolean> => {
-    try {
-      const permissionStatus = await navigator.permissions.query({ name: "microphone" as any });
-      if (permissionStatus.state === "denied") {
-        setMicPermissionDenied(true);
-        setError("Microphone access denied. Please enable permissions in browser settings.");
-        return false;
-      }
-      return true;
-    } catch (err) {
-      console.error("Error checking microphone permissions:", err);
-      setError("Failed to check microphone permissions. Using text input as fallback.");
-      return false;
-    }
-  }, []);
 
   // Initialize speech recognition
   useEffect(() => {
+    console.log("Initializing speech recognition");
     if (!("webkitSpeechRecognition" in window)) {
-      setError("Speech recognition not supported. Please use Chrome or text input.");
+      setError("Speech recognition is not supported in this browser. Please use Chrome or type your input below.");
       return;
     }
 
@@ -90,13 +52,8 @@ const LiveDebate = () => {
     recognition.interimResults = true;
     recognition.lang = "en-US";
 
-    recognition.onstart = () => {
-      setIsListening(true);
-      setIsUserSpeaking(true);
-      setNoSpeechRetryCount(0);
-    };
-
     recognition.onresult = (event: SpeechRecognitionEvent) => {
+      console.log("Speech recognition onresult triggered");
       let interimTranscript = "";
       let finalTranscript = "";
 
@@ -112,45 +69,54 @@ const LiveDebate = () => {
       setCurrentTranscript(interimTranscript);
 
       if (finalTranscript) {
-        const trimmedTranscript = finalTranscript.trim();
-        if (trimmedTranscript.length >= 3) {
-          addUserMessage(trimmedTranscript);
-          setCurrentTranscript("");
-          setNoSpeechRetryCount(0);
-        } else {
-          setError("Speech input too short. Please provide a longer argument.");
-        }
+        console.log("Final transcript:", finalTranscript);
+        const newMessage: DebateMessage = {
+          speaker: "user",
+          message: finalTranscript.trim(),
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, newMessage]);
+        setCurrentTranscript("");
+        generateAIResponse(finalTranscript.trim());
       }
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      handleRecognitionError(event.error);
+      console.error("Speech recognition error:", event.error);
+      let errorMessage = "Speech recognition failed.";
+      if (event.error === "no-speech") {
+        errorMessage = "No speech detected. Please try speaking again.";
+      } else if (event.error === "audio-capture") {
+        errorMessage = "Microphone access denied. Please allow microphone permissions.";
+      } else if (event.error === "network") {
+        errorMessage = "Network issue with speech recognition. Please check your connection.";
+      }
+      setError(errorMessage);
+      setIsListening(false);
+      setIsUserSpeaking(false);
     };
 
     recognition.onend = () => {
-      if (isListening && noSpeechRetryCount < MAX_NO_SPEECH_RETRIES) {
-        return;
-      }
+      console.log("Speech recognition ended");
       setIsListening(false);
       setIsUserSpeaking(false);
     };
 
     recognitionRef.current = recognition;
 
-    // Initial permission check
-    checkMicPermissions();
-
     return () => {
+      console.log("Cleaning up speech recognition");
       recognition.stop();
     };
-  }, [isListening, noSpeechRetryCount, checkMicPermissions]);
+  }, []);
 
   // Timer countdown
   useEffect(() => {
-    timerRef.current = setInterval(() => {
+    console.log("Timer useEffect running");
+    const timer = setInterval(() => {
       setTimeRemaining((prev) => {
-        if (prev <= DEBATE_END_BUFFER_SECONDS) {
-          clearInterval(timerRef.current as NodeJS.Timeout);
+        if (prev <= 1) {
+          clearInterval(timer);
           endDebate();
           return 0;
         }
@@ -158,92 +124,37 @@ const LiveDebate = () => {
       });
     }, 1000);
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
+    return () => clearInterval(timer);
   }, []);
 
-  // Auto-scroll and audio handling
+  // Auto-scroll to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-
-    // Cleanup audio on unmount
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
   }, [messages]);
 
-  // Play AI audio when URL changes
+  // Play AI audio immediately after message is added
   useEffect(() => {
-    if (aiAudioUrl) {
-      playAudio(aiAudioUrl);
+    if (aiAudioUrl && messages.some((msg) => msg.speaker === "ai")) {
+      console.log("Playing AI audio:", aiAudioUrl);
+      const audio = new Audio(aiAudioUrl);
+      audio.play().catch((err) => {
+        console.error("Audio playback error:", err);
+        if (err.message.includes("404")) {
+          setError("Audio file not found on server. The response is available in text.");
+        } else {
+          setError("Failed to play AI response audio. The response is available in text.");
+        }
+      });
       setAiAudioUrl(null);
     }
-  }, [aiAudioUrl]);
+  }, [messages, aiAudioUrl]);
 
-  // Helper functions
-  const addUserMessage = (message: string) => {
-    const newMessage: DebateMessage = {
-      speaker: "user",
-      message,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, newMessage]);
-    generateAIResponse(message);
-  };
-
-  const handleRecognitionError = (error: string) => {
-    let errorMessage = "Speech recognition error.";
-    
-    switch (error) {
-      case "no-speech":
-        if (noSpeechRetryCount < MAX_NO_SPEECH_RETRIES) {
-          errorMessage = `No speech detected. Retrying... (${noSpeechRetryCount + 1}/${MAX_NO_SPEECH_RETRIES})`;
-          setNoSpeechRetryCount((prev) => prev + 1);
-          setTimeout(() => recognitionRef.current?.start(), 1000);
-        } else {
-          errorMessage = "No speech detected after multiple attempts.";
-          setIsListening(false);
-        }
-        break;
-      case "audio-capture":
-        errorMessage = "Microphone access denied. Please check permissions.";
-        setMicPermissionDenied(true);
-        setIsListening(false);
-        break;
-      case "network":
-        errorMessage = "Network error. Please check your connection.";
-        setIsListening(false);
-        break;
-      default:
-        errorMessage = `Error: ${error}. Please try again.`;
-        setIsListening(false);
-    }
-
-    setError(errorMessage);
-    setIsUserSpeaking(false);
-  };
-
-  const playAudio = (url: string) => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-
-    const audio = new Audio(url);
-    audioRef.current = audio;
-
-    audio.play().catch((err) => {
-      console.error("Audio playback error:", err);
-      setError("Failed to play audio. The response is available in text.");
-    });
-  };
-
-  const generateAIResponse = async (userMessage: string, retries = 2) => {
-    if (!debateState || userMessage.length < 3) {
-      setError("Invalid input or debate configuration.");
+  const generateAIResponse = async (userMessage: string) => {
+    console.log("Generating AI response for message:", userMessage, "with level:", debateState?.level || "Intermediate");
+    if (!debateState) {
+      setError("Debate configuration is missing. Please select a topic.");
+      setIsAISpeaking(false);
+      setIsLoadingResponse(false);
       return;
     }
 
@@ -254,6 +165,10 @@ const LiveDebate = () => {
     try {
       const controller = new AbortController();
       abortControllerRef.current = controller;
+      const timeoutId = setTimeout(() => {
+        console.log("API request timed out");
+        controller.abort();
+      }, 20000);
 
       const response = await fetch(`${API_BASE_URL}/api/debate/response`, {
         method: "POST",
@@ -267,48 +182,66 @@ const LiveDebate = () => {
         signal: controller.signal,
       });
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      clearTimeout(timeoutId);
+      console.log("API response received:", response.status);
+
+      if (response.status === 404) {
+        setError("API endpoint not found. Please ensure the backend server is running correctly.");
+        return;
+      }
 
       const data = await response.json();
-      if (data.message) {
+      if (response.ok && data.message) {
         const aiMessage: DebateMessage = {
           speaker: "ai",
           message: data.message,
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, aiMessage]);
-        if (data.audio_url) setAiAudioUrl(data.audio_url);
+        console.log("AI message added:", data.message);
+        if (data.audio_url) {
+          setAiAudioUrl(data.audio_url);
+        } else {
+          setError("No audio available for this response.");
+        }
+      } else {
+        setError(data.error || "Failed to get AI response from server.");
       }
     } catch (error: any) {
-      handleAIResponseError(error, userMessage, retries);
+      console.error("API error:", error);
+      let errorMessage = "Failed to connect to the server. Please ensure the backend is running on " + API_BASE_URL + ".";
+      if (error.name === "AbortError") {
+        errorMessage = "API request timed out after 20 seconds. Please try again.";
+      } else if (error.message && error.message.includes("CORS")) {
+        errorMessage = `CORS error: Backend rejected the request. Check server configuration and ensure CORS allows ${window.location.origin}.`;
+      } else if (error.message && error.message.includes("NetworkError")) {
+        errorMessage = "Network error: Unable to reach server. Check your connection or server status.";
+      }
+      setError(errorMessage);
     } finally {
+      console.log("Resetting isAISpeaking and isLoadingResponse");
       setIsAISpeaking(false);
       setIsLoadingResponse(false);
       abortControllerRef.current = null;
     }
   };
 
-  const handleAIResponseError = (error: any, userMessage: string, retries: number) => {
-    let errorMessage = "Failed to get AI response.";
-
-    if (error.name === "AbortError") {
-      errorMessage = "Request timed out.";
-      if (retries > 0) {
-        setTimeout(() => generateAIResponse(userMessage, retries - 1), 1000);
-        return;
-      }
-    } else if (error.message.includes("CORS")) {
-      errorMessage = "CORS error. Please check server configuration.";
-    } else if (error.message.includes("NetworkError")) {
-      errorMessage = "Network error. Please check your connection.";
+  const cancelAIResponse = () => {
+    console.log("Cancelling AI response");
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setIsAISpeaking(false);
+      setIsLoadingResponse(false);
+      setAiAudioUrl(null);
+      setError("AI response cancelled.");
+      abortControllerRef.current = null;
     }
-
-    setError(errorMessage);
   };
 
-  const toggleListening = async () => {
+  const toggleListening = () => {
+    console.log("Toggling listening:", !isListening);
     if (!recognitionRef.current) {
-      setError("Speech recognition not available.");
+      setError("Speech recognition is not available. Please use the text input below.");
       return;
     }
 
@@ -316,86 +249,69 @@ const LiveDebate = () => {
       recognitionRef.current.stop();
       cancelAIResponse();
     } else {
-      const hasPermission = await checkMicPermissions();
-      if (!hasPermission) return;
-
       try {
         recognitionRef.current.start();
         setIsListening(true);
+        setIsUserSpeaking(true);
         setError(null);
       } catch (err) {
-        setError("Failed to start speech recognition.");
-        setMicPermissionDenied(true);
+        console.error("Error starting speech recognition:", err);
+        setError("Failed to start speech recognition. Please check microphone permissions.");
       }
     }
   };
 
-  const cancelAIResponse = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
-    setIsAISpeaking(false);
-    setIsLoadingResponse(false);
-    setError("AI response cancelled.");
-  };
-
   const handleTextSubmit = () => {
-    if (textInput.trim().length >= 3) {
-      addUserMessage(textInput.trim());
+    if (textInput.trim()) {
+      console.log("Text input submitted:", textInput);
+      const newMessage: DebateMessage = {
+        speaker: "user",
+        message: textInput,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, newMessage]);
+      generateAIResponse(textInput);
       setTextInput("");
-    } else {
-      setError("Please enter at least 3 characters.");
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleTextSubmit();
-    }
-  };
-
-  const playLatestAudio = () => {
-    const latestAIMessage = messages.filter((msg) => msg.speaker === "ai").pop();
-    if (latestAIMessage && aiAudioUrl) {
-      playAudio(aiAudioUrl);
     }
   };
 
   const endDebate = async () => {
-    if (isDebateEnding) return;
-    setIsDebateEnding(true);
-
-    if (recognitionRef.current) recognitionRef.current.stop();
+    console.log("Ending debate");
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
     cancelAIResponse();
-    if (timerRef.current) clearInterval(timerRef.current);
 
     const userMessages = messages.filter((m) => m.speaker === "user");
-    const performanceData: PerformanceData = {
+    const totalWords = userMessages.reduce((acc, msg) => acc + msg.message.split(" ").length, 0);
+    const avgResponseTime = userMessages.length > 0 ? timeRemaining / userMessages.length : 0;
+
+    const performanceData = {
       totalMessages: userMessages.length,
-      totalWords: userMessages.reduce((acc, msg) => acc + msg.message.split(" ").length, 0),
-      avgResponseTime: userMessages.length > 0 ? timeRemaining / userMessages.length : 0,
+      totalWords,
+      avgResponseTime,
       topic: debateState?.topic || "Unknown",
       duration: debateState?.duration || 5,
       level: debateState?.level || "Intermediate",
     };
 
-    try {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      if (user.email) {
-        await fetch(`${API_BASE_URL}/api/debate/complete`, {
+    // Increment debates_attended
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    if (user.email) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/debate/complete`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: user.email }),
         });
+        if (response.status === 404) {
+          console.error("Debate complete endpoint not found");
+          setError("Debate completion endpoint not found. Progress may not be saved.");
+        }
+      } catch (err) {
+        console.error("Error incrementing debate count:", err);
+        setError("Failed to update debate count. Check server connection.");
       }
-    } catch (err) {
-      console.error("Error saving debate completion:", err);
     }
 
     navigate("/feedback", { state: performanceData });
@@ -408,24 +324,23 @@ const LiveDebate = () => {
   };
 
   if (!debateState) {
+    console.log("No debate state, redirecting to /topics");
     navigate("/topics");
     return null;
   }
 
   return (
-    <div className="min-h-screen pt-16 flex flex-col bg-gray-900 text-white">
+    <div className="min-h-screen pt-16 flex flex-col">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 flex flex-col">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
-            Live Debate
+          <h1 className="text-3xl font-bold mb-2">
+            <span className="gradient-text">Live Debate</span>
           </h1>
-          <div className="space-y-1">
-            <p className="text-gray-300">Topic: {debateState.topic}</p>
-            <p className="text-gray-300">Your Position: {debateState.stance}</p>
-            <p className="text-gray-300">Level: {debateState.level}</p>
-          </div>
-          <div className="mt-4 flex items-center justify-center gap-2 text-lg font-semibold">
+          <p className="text-gray-300 mb-2">Topic: {debateState.topic}</p>
+          <p className="text-gray-300 mb-2">Your Position: {debateState.stance}</p>
+          <p className="text-gray-300 mb-4">Level: {debateState.level || "Intermediate"}</p>
+          <div className="flex items-center justify-center gap-2 text-lg font-semibold">
             <Clock size={20} className="text-purple-400" />
             <span className={timeRemaining < 60 ? "text-red-400" : "text-white"}>
               {formatTime(timeRemaining)}
@@ -433,186 +348,147 @@ const LiveDebate = () => {
           </div>
         </div>
 
-        {/* Status Indicators */}
+        {/* Error Message */}
         {error && (
-          <div className="bg-red-900/50 border border-red-400 rounded-lg p-3 text-center mb-4">
-            <p>{error}</p>
-            {micPermissionDenied && (
-              <a
-                href="https://support.google.com/chrome/answer/2693767"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-300 underline mt-1 inline-block"
-              >
-                Enable Microphone Guide
-              </a>
-            )}
+          <div className="text-red-400 text-center mb-4">
+            {error}
           </div>
         )}
 
+        {/* Loading Indicator */}
         {isLoadingResponse && (
-          <div className="bg-purple-900/50 border border-purple-400 rounded-lg p-3 text-center mb-4 flex items-center justify-center gap-2">
-            <span>Waiting for AI response...</span>
+          <div className="text-purple-400 text-center mb-4">
+            Waiting for AI response...
             <button
               onClick={cancelAIResponse}
-              className="p-1 bg-red-500 hover:bg-red-600 rounded-full"
-              aria-label="Cancel response"
+              className="ml-2 px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg"
             >
               <X size={16} />
             </button>
           </div>
         )}
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
-          {/* User Panel */}
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700 h-fit">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
+          {/* Left Side - User Profile */}
+          <div className="glass-card rounded-xl p-6 h-fit">
             <div className="text-center">
               <div className={`relative inline-block ${isUserSpeaking ? "animate-pulse-ring" : ""}`}>
-                <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-400 to-purple-500 flex items-center justify-center mx-auto mb-4">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-400 to-purple-400 flex items-center justify-center mx-auto mb-4">
                   <User size={32} className="text-white" />
                 </div>
                 {isUserSpeaking && (
-                  <div className="absolute inset-0 rounded-full bg-blue-400/30 animate-pulse-ring-delayed"></div>
+                  <div className="absolute inset-0 rounded-full bg-blue-400/30 animate-pulse-ring"></div>
                 )}
               </div>
               <h3 className="text-xl font-semibold mb-2">You</h3>
-              <p className="text-gray-400 text-sm mb-4">Position: {debateState.stance}</p>
+              <p className="text-gray-400 text-sm">Position: {debateState.stance}</p>
 
-              <button
-                onClick={toggleListening}
-                disabled={micPermissionDenied}
-                className={`w-full px-4 py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 mb-4 ${
-                  isListening
-                    ? "bg-red-500 hover:bg-red-600"
-                    : "bg-green-500 hover:bg-green-600"
-                } ${micPermissionDenied ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                {isListening ? <MicOff size={20} /> : <Mic size={20} />}
-                {isListening ? "Stop Recording" : "Start Recording"}
-              </button>
+              <div className="mt-6">
+                <button
+                  onClick={toggleListening}
+                  disabled={!recognitionRef.current}
+                  className={`w-full px-4 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                    isListening
+                      ? "bg-red-500 hover:bg-red-600 text-white"
+                      : "bg-green-500 hover:bg-green-600 text-white"
+                  } ${!recognitionRef.current ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+                  {isListening ? "Stop Recording" : "Start Recording"}
+                </button>
+              </div>
 
+              {/* Fallback Text Input */}
               <div className="mt-4">
-                <p className="text-gray-400 text-sm mb-2">
-                  {micPermissionDenied ? "Microphone disabled. Use text input:" : "Or type your argument:"}
-                </p>
                 <input
                   type="text"
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Type your argument..."
-                  className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition"
+                  placeholder="Type your argument (fallback)"
+                  className="w-full p-2 rounded-lg bg-white/10 text-white"
                 />
                 <button
                   onClick={handleTextSubmit}
-                  className="mt-2 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition"
+                  className="mt-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg w-full"
                 >
                   Submit
                 </button>
               </div>
 
               {currentTranscript && (
-                <div className="mt-4 p-3 bg-blue-900/30 rounded-lg border border-blue-800">
-                  <p className="text-sm text-blue-300 flex items-center gap-1">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                    </span>
-                    Listening...
-                  </p>
-                  <p className="text-white mt-1">{currentTranscript}</p>
+                <div className="mt-4 p-3 bg-blue-500/20 rounded-lg">
+                  <p className="text-sm text-blue-300">Listening...</p>
+                  <p className="text-white">{currentTranscript}</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* AI Panel */}
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700 h-fit">
+          {/* Right Side - AI Profile */}
+          <div className="glass-card rounded-xl p-6 h-fit">
             <div className="text-center">
               <div className={`relative inline-block ${isAISpeaking ? "animate-pulse-ring" : ""}`}>
-                <div className="w-20 h-20 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-4">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-r from-purple-400 to-pink-400 flex items-center justify-center mx-auto mb-4">
                   <Bot size={32} className="text-white" />
                 </div>
                 {isAISpeaking && (
-                  <div className="absolute inset-0 rounded-full bg-purple-400/30 animate-pulse-ring-delayed"></div>
+                  <div className="absolute inset-0 rounded-full bg-purple-400/30 animate-pulse-ring"></div>
                 )}
               </div>
               <h3 className="text-xl font-semibold mb-2">AI Coach</h3>
-
               {isAISpeaking && (
-                <div className="flex justify-center my-4">
-                  <div className="flex gap-1.5">
-                    {[...Array(3)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
-                        style={{ animationDelay: `${i * 0.1}s` }}
-                      />
-                    ))}
+                <div className="mt-4 flex justify-center">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce-dots"></div>
+                    <div
+                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce-dots"
+                      style={{ animationDelay: "0.2s" }}
+                    ></div>
+                    <div
+                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce-dots"
+                      style={{ animationDelay: "0.4s" }}
+                    ></div>
                   </div>
                 </div>
-              )}
-
-              {messages.some((msg) => msg.speaker === "ai") && (
-                <button
-                  onClick={playLatestAudio}
-                  disabled={!aiAudioUrl}
-                  className={`mt-4 w-full px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition ${
-                    aiAudioUrl
-                      ? "bg-purple-600 hover:bg-purple-700"
-                      : "bg-gray-600 cursor-not-allowed"
-                  }`}
-                >
-                  <Volume2 size={18} />
-                  Replay AI Response
-                </button>
               )}
             </div>
           </div>
 
           {/* Debate Transcript */}
-          <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700 flex flex-col">
-            <h3 className="text-xl font-semibold mb-4">Debate Transcript</h3>
+          <div className="glass-card rounded-xl p-6 flex flex-col">
+            <h3 className="text-xl font-semibold mb-4">Debate Between You and AI</h3>
 
-            <div className="flex-1 overflow-y-auto space-y-4 pr-2 max-h-[400px]">
-              {messages.length > 0 ? (
-                messages.map((message, index) => (
+            <div className="flex-1 overflow-y-auto space-y-4 max-h-96">
+              {messages.map((message, index) => (
+                <div
+                  key={index}
+                  className={`flex ${message.speaker === "user" ? "justify-end" : "justify-start"}`}
+                >
                   <div
-                    key={index}
-                    className={`flex ${message.speaker === "user" ? "justify-end" : "justify-start"}`}
+                    className={`max-w-[80%] p-3 rounded-lg ${
+                      message.speaker === "user"
+                        ? "bg-blue-500/20 text-blue-100"
+                        : "bg-purple-500/20 text-purple-100"
+                    }`}
                   >
-                    <div
-                      className={`max-w-[80%] p-3 rounded-lg ${
-                        message.speaker === "user"
-                          ? "bg-blue-600/20 border border-blue-700/50"
-                          : "bg-purple-600/20 border border-purple-700/50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        {message.speaker === "user" ? (
-                          <User size={16} className="text-blue-300" />
-                        ) : (
-                          <Bot size={16} className="text-purple-300" />
-                        )}
-                        <span className="text-sm font-medium">
-                          {message.speaker === "user" ? "You" : "AI"}
-                        </span>
-                        <span className="text-xs text-gray-400 ml-auto">
-                          {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                      <p className="text-sm">{message.message}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      {message.speaker === "user" ? <User size={16} /> : <Bot size={16} />}
+                      <span className="text-sm font-medium">
+                        {message.speaker === "user" ? "You" : "AI"}
+                      </span>
                     </div>
+                    <p className="text-sm">{message.message}</p>
                   </div>
-                ))
-              ) : (
-                <div className="flex-1 flex items-center justify-center text-gray-400">
-                  <p>Start speaking or typing to begin the debate</p>
                 </div>
-              )}
+              ))}
               <div ref={messagesEndRef} />
             </div>
+
+            {messages.length === 0 && (
+              <div className="flex-1 flex items-center justify-center text-gray-400">
+                <p>Start recording or type to begin the debate!</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -620,10 +496,9 @@ const LiveDebate = () => {
         <div className="text-center mt-8">
           <button
             onClick={endDebate}
-            disabled={isDebateEnding}
-            className="px-6 py-3 bg-red-600 hover:bg-red-700 rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors"
           >
-            {isDebateEnding ? "Ending Debate..." : "End Debate Early"}
+            End Debate Early
           </button>
         </div>
       </div>
