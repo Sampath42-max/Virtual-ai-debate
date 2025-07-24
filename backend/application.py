@@ -197,18 +197,22 @@ def get_tts_audio(text):
 @application.route('/signup', methods=['POST'])
 def signup():
     logger.info("Signup endpoint called")
-    logger.info(f"Raw request data: {request.get_data(as_text=True)}")
+    raw_data = request.get_data(as_text=True)
+    logger.info(f"Raw request data: {raw_data}")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
     logger.info(f"All headers: {dict(request.headers)}")
     # Manually read JSON body
     try:
         data = request.get_json(silent=True) or {}
         if not data:
-            raw_data = request.get_data(as_text=True)
             logger.info(f"Raw data for parsing: {raw_data}")
-            import json
-            data = json.loads(raw_data) if raw_data else {}
-            logger.info(f"Manually parsed JSON: {data}")
+            if raw_data and raw_data.strip():
+                import json
+                data = json.loads(raw_data)
+                logger.info(f"Manually parsed JSON: {data}")
+            else:
+                logger.error("No valid raw data received")
+                return jsonify({"error": "No valid request body received"}), 400
     except Exception as e:
         logger.error(f"Failed to parse JSON manually: {str(e)}")
         return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
@@ -261,18 +265,22 @@ def signup():
 @application.route('/login', methods=['POST'])
 def login():
     logger.info("Login endpoint called")
-    logger.info(f"Raw request data: {request.get_data(as_text=True)}")
+    raw_data = request.get_data(as_text=True)
+    logger.info(f"Raw request data: {raw_data}")
     logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
     logger.info(f"All headers: {dict(request.headers)}")
     # Manually read JSON body
     try:
         data = request.get_json(silent=True) or {}
         if not data:
-            raw_data = request.get_data(as_text=True)
             logger.info(f"Raw data for parsing: {raw_data}")
-            import json
-            data = json.loads(raw_data) if raw_data else {}
-            logger.info(f"Manually parsed JSON: {data}")
+            if raw_data and raw_data.strip():
+                import json
+                data = json.loads(raw_data)
+                logger.info(f"Manually parsed JSON: {data}")
+            else:
+                logger.error("No valid raw data received")
+                return jsonify({"error": "No valid request body received"}), 400
     except Exception as e:
         logger.error(f"Failed to parse JSON manually: {str(e)}")
         return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
@@ -305,6 +313,7 @@ def login():
     except Exception as e:
         logger.error(f"MongoDB query error: {str(e)}")
         return jsonify({"error": "Failed to login"}), 500
+        
 @application.route('/profile', methods=['POST'])
 def profile():
     logger.info("Profile endpoint called")
