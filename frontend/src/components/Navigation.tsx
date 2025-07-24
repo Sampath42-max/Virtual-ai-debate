@@ -10,8 +10,6 @@ import {
 } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 
-const API_URL = "https://virtual-ai-debate.onrender.com";
-
 const Navigation = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const navigate = useNavigate();
@@ -19,52 +17,50 @@ const Navigation = () => {
 
   useEffect(() => {
     const validateSession = async () => {
-      const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-
-      if (!storedUser?.email) {
-        setIsLoggedIn(false);
-        return;
-      }
-
-      try {
-        const response = await fetch(`${API_URL}/profile`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: storedUser.email }),
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.user) {
-          setIsLoggedIn(true);
-          // Update user info only if different
-          const { name, email, profile_picture } = data.user;
-          const current = localStorage.getItem("user");
-          const updated = JSON.stringify({ name, email, profile_picture });
-          if (current !== updated) {
-            localStorage.setItem("user", updated);
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      if (user.email) {
+        try {
+          const response = await fetch("http://localhost:5000/profile", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: user.email }),
+          });
+          const data = await response.json();
+          if (response.ok && data.user) {
+            setIsLoggedIn(true);
+            localStorage.setItem("user", JSON.stringify({
+              name: data.user.name,
+              email: data.user.email,
+              profile_picture: data.user.profile_picture
+            }));
+          } else {
+            localStorage.removeItem("user");
+            setIsLoggedIn(false);
+            toast({
+              variant: "destructive",
+              title: "Session Expired",
+              description: "Please log in again.",
+            });
+            navigate("/login");
           }
-        } else {
-          throw new Error(data?.error || "Invalid session");
+        } catch (err) {
+          console.error("Session validation error:", err);
+          localStorage.removeItem("user");
+          setIsLoggedIn(false);
+          toast({
+            variant: "destructive",
+            title: "Session Error",
+            description: "Failed to validate session. Please log in again.",
+          });
+          navigate("/login");
         }
-      } catch (err) {
-        console.error("Session validation error:", err);
-        localStorage.removeItem("user");
+      } else {
         setIsLoggedIn(false);
-        toast({
-          variant: "destructive",
-          title: "Session Error",
-          description: "Session expired. Please log in again.",
-        });
-        navigate("/login");
       }
     };
 
     validateSession();
   }, [navigate, toast]);
-
-  const navLinkStyle = ({ isActive }: { isActive: boolean }) =>
-    `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`;
 
   return (
     <nav className="fixed top-0 left-0 right-0 bg-gray-900/80 backdrop-blur-md z-50">
@@ -73,15 +69,42 @@ const Navigation = () => {
           <NavLink to="/" className="text-2xl font-bold text-white">
             DebateAI
           </NavLink>
-
           <div className="hidden md:flex gap-4">
-            <NavLink to="/" className={navLinkStyle}>Home</NavLink>
+            <NavLink
+              to="/"
+              className={({ isActive }) =>
+                `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
+              }
+            >
+              Home
+            </NavLink>
             {isLoggedIn ? (
-              <NavLink to="/topics" className={navLinkStyle}>Debate</NavLink>
+              <NavLink
+                to="/topics"
+                className={({ isActive }) =>
+                  `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
+                }
+              >
+                Debate
+              </NavLink>
             ) : (
               <>
-                <NavLink to="/login" className={navLinkStyle}>Login</NavLink>
-                <NavLink to="/signup" className={navLinkStyle}>Signup</NavLink>
+                <NavLink
+                  to="/login"
+                  className={({ isActive }) =>
+                    `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
+                  }
+                >
+                  Login
+                </NavLink>
+                <NavLink
+                  to="/signup"
+                  className={({ isActive }) =>
+                    `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
+                  }
+                >
+                  Signup
+                </NavLink>
               </>
             )}
           </div>
@@ -93,7 +116,6 @@ const Navigation = () => {
           </div>
         )}
 
-        {/* Mobile Navigation */}
         <Sheet>
           <SheetTrigger asChild>
             <Button variant="ghost" className="md:hidden text-white">
@@ -102,13 +124,41 @@ const Navigation = () => {
           </SheetTrigger>
           <SheetContent className="bg-gray-800 text-white border-gray-700">
             <div className="flex flex-col gap-4 mt-4">
-              <NavLink to="/" className={navLinkStyle}>Home</NavLink>
+              <NavLink
+                to="/"
+                className={({ isActive }) =>
+                  `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
+                }
+              >
+                Home
+              </NavLink>
               {isLoggedIn ? (
-                <NavLink to="/topics" className={navLinkStyle}>Debate</NavLink>
+                <NavLink
+                  to="/topics"
+                  className={({ isActive }) =>
+                    `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
+                  }
+                >
+                  Debate
+                </NavLink>
               ) : (
                 <>
-                  <NavLink to="/login" className={navLinkStyle}>Login</NavLink>
-                  <NavLink to="/signup" className={navLinkStyle}>Signup</NavLink>
+                  <NavLink
+                    to="/login"
+                    className={({ isActive }) =>
+                      `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
+                    }
+                  >
+                    Login
+                  </NavLink>
+                  <NavLink
+                    to="/signup"
+                    className={({ isActive }) =>
+                      `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`
+                    }
+                  >
+                    Signup
+                  </NavLink>
                 </>
               )}
             </div>
