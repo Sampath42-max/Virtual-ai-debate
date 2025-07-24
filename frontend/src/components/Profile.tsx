@@ -1,3 +1,4 @@
+// Updated Profile.tsx with env-based API
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, LogOut } from "lucide-react";
@@ -12,15 +13,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const API_URL = '/api'; // Use the same proxy as api.js
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const Profile = () => {
-  const [user, setUser] = useState<{
-    name: string;
-    email: string;
-    debates_attended: number;
-    profile_picture: string;
-  } | null>(null);
+  const [user, setUser] = useState(null);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -61,18 +57,12 @@ const Profile = () => {
         }
       } catch (err: any) {
         console.error("Profile fetch error:", err);
-        let errorMessage = "Failed to connect to the server. Please ensure the backend is running.";
-        if (err.message.includes("CORS")) {
-          errorMessage = "CORS error: Backend rejected the request.";
-        } else if (err.message.includes("NetworkError")) {
-          errorMessage = "Network error: Unable to reach server.";
-        }
-        setError(errorMessage);
+        setError("Failed to connect to the server. Please ensure the backend is running.");
         localStorage.removeItem("user");
         toast({
           variant: "destructive",
           title: "Profile Error",
-          description: errorMessage,
+          description: "Network error or CORS issue",
         });
         navigate("/login");
       }
@@ -90,9 +80,7 @@ const Profile = () => {
     navigate("/login");
   };
 
-  if (!user || error) {
-    return null;
-  }
+  if (!user || error) return null;
 
   return (
     <DropdownMenu>
@@ -106,16 +94,11 @@ const Profile = () => {
               onError={(e) => {
                 e.currentTarget.style.display = 'none';
                 const nextSibling = e.currentTarget.nextElementSibling as HTMLElement | null;
-                if (nextSibling) {
-                  nextSibling.style.display = 'block';
-                }
+                if (nextSibling) nextSibling.style.display = 'block';
               }}
             />
           ) : null}
-          <User
-            size={32}
-            className={`text-purple-400 ${user.profile_picture ? 'hidden' : 'block'}`}
-          />
+          <User size={32} className={`text-purple-400 ${user.profile_picture ? 'hidden' : 'block'}`} />
           <span>{user.name}</span>
         </Button>
       </DropdownMenuTrigger>
@@ -127,19 +110,9 @@ const Profile = () => {
                 src={user.profile_picture}
                 alt="Profile"
                 className="w-10 h-10 rounded-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  const nextSibling = e.currentTarget.nextElementSibling as HTMLElement | null;
-                  if (nextSibling) {
-                    nextSibling.style.display = 'block';
-                  }
-                }}
               />
             ) : null}
-            <User
-              size={40}
-              className={`text-purple-400 ${user.profile_picture ? 'hidden' : 'block'}`}
-            />
+            <User size={40} className={`text-purple-400 ${user.profile_picture ? 'hidden' : 'block'}`} />
             <div>
               <p className="font-medium">{user.name}</p>
               <p className="text-sm text-gray-400">{user.email}</p>
@@ -151,8 +124,7 @@ const Profile = () => {
         </DropdownMenuItem>
         <DropdownMenuSeparator className="bg-gray-700" />
         <DropdownMenuItem onClick={handleLogout} className="text-red-400">
-          <LogOut size={16} className="mr-2" />
-          Logout
+          <LogOut size={16} className="mr-2" /> Logout
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
