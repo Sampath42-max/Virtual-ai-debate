@@ -187,27 +187,22 @@ def get_tts_audio(text):
         delete_file_with_retry(audio_file)
         return None
 
+def parse_request_json():
+    try:
+        data = request.get_json(force=True)
+        logger.info(f"Parsed JSON: {data}")
+        return data, None
+    except Exception as e:
+        logger.error(f"Failed to parse JSON: {str(e)}")
+        return None, jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+
+
 @application.route('/signup', methods=['POST'])
 def signup():
     logger.info("Signup endpoint called")
-    logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
-    logger.info(f"All headers: {dict(request.headers)}")
-    # Try WSGI input stream, fallback to get_data
-    try:
-        raw_data = request.stream.read().decode('utf-8')
-        logger.info(f"Raw request data from stream: {raw_data}")
-        if not raw_data or not raw_data.strip():
-            raw_data = request.get_data(as_text=True)
-            logger.info(f"Fallback raw data from get_data: {raw_data}")
-        if not raw_data or not raw_data.strip():
-            logger.error("No valid raw data received")
-            return jsonify({"error": "No valid request body received"}), 400
-        import json
-        data = json.loads(raw_data)
-        logger.info(f"Manually parsed JSON: {data}")
-    except Exception as e:
-        logger.error(f"Failed to parse JSON: {str(e)}")
-        return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+    data, error_response = parse_request_json()
+    if error_response:
+        return error_response
 
     name = data.get('name')
     email = data.get('email')
@@ -215,29 +210,26 @@ def signup():
     confirm_password = data.get('confirm_password')
 
     if not all([name, email, password, confirm_password]):
-        logger.error(f"Missing required fields in signup request: {data}")
         return jsonify({"error": "All fields are required"}), 400
     if password != confirm_password:
-        logger.error("Passwords do not match")
         return jsonify({"error": "Passwords do not match"}), 400
     if not password_regex.match(password):
-        logger.error("Invalid password format")
-        return jsonify({"error": "Password must be 8+ characters, start with a letter, and include alphabets, numbers, and symbols"}), 400
+        return jsonify({
+            "error": "Password must be 8+ characters, start with a letter, and include alphabets, numbers, and symbols"
+        }), 400
+
     try:
         if mongo.db.users.find_one({"email": email}):
-            logger.error(f"Email already registered: {email}")
             return jsonify({"error": "Email already registered"}), 400
 
         hashed_password = generate_password_hash(password)
-        user_data = {
+        mongo.db.users.insert_one({
             "name": name,
             "email": email,
             "password": hashed_password,
             "debates_attended": 0,
             "profile_picture": ""
-        }
-        mongo.db.users.insert_one(user_data)
-        logger.info(f"User registered successfully: {email}")
+        })
         return jsonify({
             "message": "User registered successfully",
             "user": {
@@ -247,46 +239,26 @@ def signup():
                 "profile_picture": ""
             }
         }), 201
-    except AttributeError as e:
-        logger.error(f"MongoDB not initialized: {str(e)}")
-        return jsonify({"error": "Database connection failed. Please try again later."}), 500
     except Exception as e:
-        logger.error(f"MongoDB insert error: {str(e)}")
+        logger.error(f"Signup failed: {str(e)}")
         return jsonify({"error": "Failed to register user"}), 500
 
 @application.route('/login', methods=['POST'])
 def login():
     logger.info("Login endpoint called")
-    logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
-    logger.info(f"All headers: {dict(request.headers)}")
-    # Try WSGI input stream, fallback to get_data
-    try:
-        raw_data = request.stream.read().decode('utf-8')
-        logger.info(f"Raw request data from stream: {raw_data}")
-        if not raw_data or not raw_data.strip():
-            raw_data = request.get_data(as_text=True)
-            logger.info(f"Fallback raw data from get_data: {raw_data}")
-        if not raw_data or not raw_data.strip():
-            logger.error("No valid raw data received")
-            return jsonify({"error": "No valid request body received"}), 400
-        import json
-        data = json.loads(raw_data)
-        logger.info(f"Manually parsed JSON: {data}")
-    except Exception as e:
-        logger.error(f"Failed to parse JSON: {str(e)}")
-        return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+    data, error_response = parse_request_json()
+    if error_response:
+        return error_response
 
     email = data.get('email')
     password = data.get('password')
 
     if not all([email, password]):
-        logger.error(f"Missing email or password in login request: {data}")
         return jsonify({"error": "Email and password are required"}), 400
 
     try:
         user = mongo.db.users.find_one({"email": email})
         if user and check_password_hash(user['password'], password):
-            logger.info(f"User logged in successfully: {email}")
             return jsonify({
                 "message": "Login successful",
                 "user": {
@@ -296,44 +268,25 @@ def login():
                     "profile_picture": user.get('profile_picture', '')
                 }
             }), 200
-        logger.error("Invalid email or password")
         return jsonify({"error": "Invalid email or password"}), 401
-    except AttributeError as e:
-        logger.error(f"MongoDB not initialized: {str(e)}")
-        return jsonify({"error": "Database connection failed. Please try again later."}), 500
     except Exception as e:
-        logger.error(f"MongoDB query error: {str(e)}")
+        logger.error(f"Login failed: {str(e)}")
         return jsonify({"error": "Failed to login"}), 500
 
 @application.route('/profile', methods=['POST'])
 def profile():
     logger.info("Profile endpoint called")
-    logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
-    logger.info(f"All headers: {dict(request.headers)}")
-    # Read body from WSGI input stream
-    try:
-        raw_data = request.stream.read().decode('utf-8')
-        logger.info(f"Raw request data from stream: {raw_data}")
-        if not raw_data or not raw_data.strip():
-            logger.error("No valid raw data received from stream")
-            return jsonify({"error": "No valid request body received"}), 400
-        import json
-        data = json.loads(raw_data)
-        logger.info(f"Manually parsed JSON: {data}")
-    except Exception as e:
-        logger.error(f"Failed to parse JSON from stream: {str(e)}")
-        return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+    data, error_response = parse_request_json()
+    if error_response:
+        return error_response
 
     email = data.get('email')
-
     if not email:
-        logger.error("Missing email in profile request")
         return jsonify({"error": "Email is required"}), 400
 
     try:
         user = mongo.db.users.find_one({"email": email})
         if user:
-            logger.info(f"Profile fetched for: {email}")
             return jsonify({
                 "user": {
                     "name": user['name'],
@@ -342,61 +295,36 @@ def profile():
                     "profile_picture": user.get('profile_picture', '')
                 }
             }), 200
-        logger.error("User not found")
         return jsonify({"error": "User not found"}), 404
-    except AttributeError as e:
-        logger.error(f"MongoDB not initialized: {str(e)}")
-        return jsonify({"error": "Database connection failed. Please try again later."}), 500
     except Exception as e:
-        logger.error(f"MongoDB query error: {str(e)}")
+        logger.error(f"Profile fetch failed: {str(e)}")
         return jsonify({"error": "Failed to fetch profile"}), 500
 
 @application.route('/api/debate/response', methods=['POST'])
 def get_debate_response():
     logger.info("Debate response endpoint called")
-    logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
-    logger.info(f"All headers: {dict(request.headers)}")
-    # Read body from WSGI input stream
-    try:
-        raw_data = request.stream.read().decode('utf-8')
-        logger.info(f"Raw request data from stream: {raw_data}")
-        if not raw_data or not raw_data.strip():
-            logger.error("No valid raw data received from stream")
-            return jsonify({"error": "No valid request body received"}), 400
-        import json
-        data = json.loads(raw_data)
-        logger.info(f"Manually parsed JSON: {data}")
-    except Exception as e:
-        logger.error(f"Failed to parse JSON from stream: {str(e)}")
-        return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+    data, error_response = parse_request_json()
+    if error_response:
+        return error_response
 
-    start_time = time.time()
     user_message = data.get('message')
     topic = data.get('topic')
     stance = data.get('stance')
     level = data.get('level')
 
     if not all([user_message, topic, stance, level]):
-        logger.error(f"Missing required fields in debate response request: {data}")
         return jsonify({"error": "Message, topic, stance, and level are required"}), 400
 
-    gemini_start = time.time()
     ai_response = get_gemini_response(user_message, topic, stance, level)
-    logger.info(f"Gemini response time: {time.time() - gemini_start:.2f} seconds")
-
-    audio_start = time.time()
     audio_file = get_tts_audio(ai_response)
     if not audio_file:
-        logger.error("Audio file not created")
         return jsonify({"error": "Failed to generate audio file"}), 500
-    logger.info(f"Audio generation time: {time.time() - audio_start:.2f} seconds")
 
-    response_data = {
+    return jsonify({
         "message": ai_response,
         "audio_url": f"{BACKEND_URL}/api/debate/audio/{os.path.basename(audio_file)}"
-    }
-    logger.info(f"Total response time: {time.time() - start_time:.2f} seconds: {response_data}")
-    return jsonify(response_data), 200
+    }), 200
+
 
 @application.route('/api/debate/audio/<filename>', methods=['GET'])
 def serve_audio(filename):
@@ -416,27 +344,13 @@ def serve_audio(filename):
 
 @application.route('/api/debate/complete', methods=['POST'])
 def complete_debate():
-    logger.info("Debate completion endpoint called")
-    logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
-    logger.info(f"All headers: {dict(request.headers)}")
-    # Read body from WSGI input stream
-    try:
-        raw_data = request.stream.read().decode('utf-8')
-        logger.info(f"Raw request data from stream: {raw_data}")
-        if not raw_data or not raw_data.strip():
-            logger.error("No valid raw data received from stream")
-            return jsonify({"error": "No valid request body received"}), 400
-        import json
-        data = json.loads(raw_data)
-        logger.info(f"Manually parsed JSON: {data}")
-    except Exception as e:
-        logger.error(f"Failed to parse JSON from stream: {str(e)}")
-        return jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+    logger.info("Debate complete endpoint called")
+    data, error_response = parse_request_json()
+    if error_response:
+        return error_response
 
     email = data.get('email')
-
     if not email:
-        logger.error("Missing email in debate completion request")
         return jsonify({"error": "Email is required"}), 400
 
     try:
@@ -446,15 +360,10 @@ def complete_debate():
                 {"email": email},
                 {"$inc": {"debates_attended": 1}}
             )
-            logger.info(f"Debate count incremented for: {email}")
             return jsonify({"message": "Debate count updated"}), 200
-        logger.error("User not found")
         return jsonify({"error": "User not found"}), 404
-    except AttributeError as e:
-        logger.error(f"MongoDB not initialized: {str(e)}")
-        return jsonify({"error": "Database connection failed. Please try again later."}), 500
     except Exception as e:
-        logger.error(f"MongoDB update error: {str(e)}")
+        logger.error(f"Debate count update failed: {str(e)}")
         return jsonify({"error": "Failed to update debate count"}), 500
 
 @application.route('/')
