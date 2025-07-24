@@ -3,7 +3,7 @@ import axios from 'axios';
 // NOTE: API_URL uses the /api proxy. For production, set VITE_API_BASE_URL in your .env file. Falls back to /api for development proxy.
 const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
-export const signup = async (name, email, password, confirmPassword) => {
+export const signup = async (name: string, email: string, password: string, confirmPassword: string) => {
   try {
     const response = await axios.post(`${API_URL}/signup`, {
       name,
@@ -11,20 +11,20 @@ export const signup = async (name, email, password, confirmPassword) => {
       password,
       confirm_password: confirmPassword,
     });
-    return response.data;
-  } catch (error) {
+    return response.data as { user: { name: string; email: string; profile_picture: string } };
+  } catch (error: any) {
     throw error.response.data;
   }
 };
 
-export const login = async (email, password) => {
+export const login = async (email: string, password: string) => {
   try {
     const response = await axios.post(`${API_URL}/login`, {
       email,
       password,
     });
-    return response.data;
-  } catch (error) {
+    return response.data as { user: { name: string; email: string; profile_picture: string } };
+  } catch (error: any) {
     throw error.response.data;
   }
 };
@@ -32,8 +32,8 @@ export const login = async (email, password) => {
 export const getDebateTip = async () => {
   try {
     const response = await axios.get(`${API_URL}/debate`);
-    return response.data;
-  } catch (error) {
+    return response.data as { tip: string };
+  } catch (error: any) {
     throw error.response.data;
   }
 };
