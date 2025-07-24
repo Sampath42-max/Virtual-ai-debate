@@ -4,6 +4,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { login } from "@/api"; // Import login function from api.js
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -14,36 +15,23 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch("http://localhost:5000/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const data = await login(email, password);
+      localStorage.setItem("user", JSON.stringify({
+        name: data.user.name,
+        email: data.user.email,
+        profile_picture: data.user.profile_picture
+      }));
+      toast({
+        title: "Login Successful",
+        description: "Welcome back!",
       });
-      const data = await response.json();
-      if (response.ok) {
-        localStorage.setItem("user", JSON.stringify({
-          name: data.user.name,
-          email: data.user.email,
-          profile_picture: data.user.profile_picture
-        }));
-        toast({
-          title: "Login Successful",
-          description: "Welcome back!",
-        });
-        navigate("/topics");
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Login Failed",
-          description: data.error || "Invalid email or password",
-        });
-      }
-    } catch (err) {
+      navigate("/topics");
+    } catch (err: any) {
       console.error("Login error:", err);
       toast({
         variant: "destructive",
         title: "Login Error",
-        description: "Failed to connect to the server. Please try again.",
+        description: err.error || "Invalid email or password",
       });
     }
   };
