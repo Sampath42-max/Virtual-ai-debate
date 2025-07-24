@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 
-const API_URL = '/api'; // Use the same proxy as api.js
+// Use the same dynamic API_URL as in api.ts
+const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const Navigation = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
