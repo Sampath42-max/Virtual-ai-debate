@@ -23,26 +23,10 @@ application = Flask(__name__)
 
 # Enable CORS for all required endpoints
 CORS(application, resources={
-    r"/api/*": {"origins": [
-        "http://localhost:8080",
-        "https://virtual-ai-debate.vercel.app",
-        "http://13.200.221.185"
-    ]},
-    r"/signup": {"origins": [
-        "http://localhost:8080",
-        "https://virtual-ai-debate.vercel.app",
-        "http://13.200.221.185"
-    ]},
-    r"/login": {"origins": [
-        "http://localhost:8080",
-        "https://virtual-ai-debate.vercel.app",
-        "http://13.200.221.185"
-    ]},
-    r"/profile": {"origins": [
-        "http://localhost:8080",
-        "https://virtual-ai-debate.vercel.app",
-        "http://13.200.221.185"
-    ]}
+    r"/api/*": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app", "http://13.200.221.185"]},
+    r"/signup": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app", "http://13.200.221.185"]},
+    r"/login": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app", "http://13.200.221.185"]},
+    r"/profile": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app", "http://13.200.221.185"]}
 })
 
 
