@@ -23,6 +23,7 @@ application = Flask(__name__)
 
 # Enable CORS for all required endpoints
 CORS(application, resources={
+    
     r"/api/*": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
     r"/signup": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
     r"/login": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
