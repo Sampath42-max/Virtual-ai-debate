@@ -2,6 +2,5 @@ services:
   - type: web
     name: flask-resume-app
     env: python
-    buildCommand: |
-      pip install -r requirements.txt
-    startCommand: gunicorn application:application
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 1 --timeout 120 --log-level debug application:application
