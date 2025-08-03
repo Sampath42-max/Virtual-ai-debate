@@ -23,11 +23,28 @@ application = Flask(__name__)
 
 # Enable CORS for all required endpoints
 CORS(application, resources={
-    r"/api/*": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
-    r"/signup": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
-    r"/login": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
-    r"/profile": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]}
+    r"/api/*": {"origins": [
+        "http://localhost:8080",
+        "https://virtual-ai-debate.vercel.app",
+        "http://13.200.221.185"
+    ]},
+    r"/signup": {"origins": [
+        "http://localhost:8080",
+        "https://virtual-ai-debate.vercel.app",
+        "http://13.200.221.185"
+    ]},
+    r"/login": {"origins": [
+        "http://localhost:8080",
+        "https://virtual-ai-debate.vercel.app",
+        "http://13.200.221.185"
+    ]},
+    r"/profile": {"origins": [
+        "http://localhost:8080",
+        "https://virtual-ai-debate.vercel.app",
+        "http://13.200.221.185"
+    ]}
 })
+
 
 # Hardcoded environment variables
 MONGO_URI = "mongodb+srv://sampathkumar4008:ea9IEuPRxnWyrcHE@debateai.mne98el.mongodb.net/debateai?retryWrites=true&w=majority&appName=DEBATEAI"
