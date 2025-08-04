@@ -8,7 +8,7 @@ if (process.env.NODE_ENV !== 'production') {
   import('dotenv').then(dotenv => dotenv.config());
 }
 
-const API_BASE_URL = process.env.VITE_API_BASE_URL || 'http://ai-debate.ap-south-1.elasticbeanstalk.com';
+const API_BASE_URL = process.env.VITE_API_BASE_URL || 'https://virtual-ai-debate.onrender.com';
 
 export default defineConfig(({ mode }) => ({
   server: {
@@ -32,3 +32,4 @@ export default defineConfig(({ mode }) => ({
     },
   },
 }));
+
