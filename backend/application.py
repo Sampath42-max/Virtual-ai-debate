@@ -15,6 +15,9 @@ from langchain_core.output_parsers import StrOutputParser
 from google.api_core.exceptions import ResourceExhausted, InvalidArgument
 import hashlib
 import re
+import glob
+from datetime import datetime, timedelta
+from requests.exceptions import HTTPError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -44,6 +47,12 @@ if not MONGO_URI or not GEMINI_API_KEY:
     logger.critical("Missing required environment variables: MONGO_URI or GEMINI_API_KEY")
     raise EnvironmentError("MONGO_URI or GEMINI_API_KEY not configured")
 
+# Log environment variables for debugging (remove in production)
+logger.debug(f"MONGO_URI set: {'Yes' if MONGO_URI else 'No'}")
+logger.debug(f"GEMINI_API_KEY set: {'Yes' if GEMINI_API_KEY else 'No'}")
+logger.debug(f"BACKEND_URL: {BACKEND_URL}")
+logger.debug(f"PORT: {PORT}")
+
 # MongoDB configuration
 application.config["MONGO_URI"] = MONGO_URI
 mongo = PyMongo(application)
@@ -60,13 +69,19 @@ except Exception as e:
 TEMP_AUDIO_DIR = os.path.join('/tmp', 'temp_audio')
 os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
-    google_api_key=GEMINI_API_KEY,
-    max_retries=3,
-    temperature=0.7,
-    max_output_tokens=150
-)
+# Initialize LangChain with Gemini
+try:
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-1.5-flash",
+        google_api_key=GEMINI_API_KEY,
+        max_retries=3,
+        temperature=0.7,
+        max_output_tokens=150
+    )
+    logger.info("Successfully initialized Gemini API client")
+except Exception as e:
+    logger.error(f"Failed to initialize Gemini API client: {str(e)}")
+    raise Exception("Gemini API initialization failed")
 
 prompt_template = PromptTemplate(
     input_variables=["topic", "stance", "user_message", "level"],
@@ -100,6 +115,19 @@ password_regex = re.compile(r'^[a-zA-Z][a-zA-Z0-9!@#$%^&*]{7,}$')
 # Allowed debate levels
 ALLOWED_LEVELS = {"Beginner", "Intermediate", "Advanced", "Expert"}
 
+def clean_old_audio_files(max_age_hours=1):
+    """Remove audio files older than max_age_hours from TEMP_AUDIO_DIR."""
+    try:
+        now = datetime.now()
+        cutoff = now - timedelta(hours=max_age_hours)
+        for file_path in glob.glob(os.path.join(TEMP_AUDIO_DIR, "*.mp3")):
+            file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+            if file_mtime < cutoff:
+                delete_file_with_retry(file_path)
+                logger.info(f"Cleaned up old audio file: {file_path}")
+    except Exception as e:
+        logger.error(f"Error cleaning old audio files: {str(e)}")
+
 def sanitize_input(text):
     """Sanitize input by removing non-printable characters and excessive whitespace."""
     if not isinstance(text, str):
@@ -118,11 +146,11 @@ def get_gemini_response(user_message, topic, stance, level):
     
     if not user_message or not topic or not stance or not level:
         logger.error("Invalid input after sanitization")
-        return "Sorry, the input is invalid. Please provide a valid argument, topic, stance, and level."
+        return None, "Invalid input. Please provide a valid argument, topic, stance, and level.", 400
     
     if level not in ALLOWED_LEVELS:
         logger.error(f"Invalid debate level: {level}")
-        return "Sorry, the selected debate level is invalid. Please choose Beginner, Intermediate, Advanced, or Expert."
+        return None, "Invalid debate level. Please choose Beginner, Intermediate, Advanced, or Expert.", 400
 
     logger.debug(f"Sanitized inputs - message: {user_message}, topic: {topic}, stance: {stance}, level: {level}")
     logger.debug(f"Input character codes: {[ord(c) for c in user_message]}")
@@ -138,17 +166,17 @@ def get_gemini_response(user_message, topic, stance, level):
         logger.info(f"LangChain response received in {time.time() - start_time:.2f} seconds: {response}")
         if not response:
             logger.warning("Empty response from Gemini API")
-            return "I understand your point, but let's consider another perspective."
-        return response
+            return None, "No response from AI. Please try again.", 500
+        return response, None, 200
     except ResourceExhausted as e:
         logger.error(f"Gemini API quota exceeded: {str(e)}")
-        return "Sorry, we've reached our API quota. Please try again later or check your Gemini API plan at https://ai.google.dev/gemini-api/docs/rate-limits."
+        return None, "API quota exceeded. Please try again later or check your Gemini API plan at https://ai.google.dev/gemini-api/docs/rate-limits.", 429
     except InvalidArgument as e:
         logger.error(f"Invalid argument in Gemini API call: {str(e)}")
-        return "Sorry, the input was invalid. Please try a different argument."
+        return None, f"Invalid API key or argument: {str(e)}. Please check your configuration.", 400
     except Exception as e:
         logger.error(f"LangChain/Gemini API error: {str(e)}")
-        return "I understand your point, but let's consider another perspective."
+        return None, "Failed to generate response. Please try again.", 500
 
 def delete_file_with_retry(filename, max_attempts=5, delay=2):
     for attempt in range(max_attempts):
@@ -170,27 +198,42 @@ def get_tts_audio(text):
     text = sanitize_input(text)
     if not text:
         logger.error("Invalid text for TTS")
-        return None
+        return None, "Invalid text for audio generation.", 400
+
     cache_key = hashlib.md5(text.encode()).hexdigest()
     if cache_key in audio_cache:
         logger.info(f"Using cached audio for text: {text[:50]}...")
-        return audio_cache[cache_key]
+        return audio_cache[cache_key], None, 200
 
     audio_file = os.path.join(TEMP_AUDIO_DIR, f"ai_response_{random.randint(1000, 9999)}.mp3")
-    try:
-        tts_start = time.time()
-        tts = gTTS(text=text[:100], lang='en')
-        tts.save(audio_file)
-        if not os.path.exists(audio_file):
-            logger.error(f"Audio file not created: {audio_file}")
-            return None
-        logger.info(f"Audio file generated in {time.time() - tts_start:.2f} seconds: {audio_file}, size: {os.path.getsize(audio_file)} bytes")
-        audio_cache[cache_key] = audio_file
-        return audio_file
-    except Exception as e:
-        logger.error(f"gTTS error: {str(e)}")
-        delete_file_with_retry(audio_file)
-        return None
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            tts_start = time.time()
+            tts = gTTS(text=text[:100], lang='en')
+            tts.save(audio_file)
+            if not os.path.exists(audio_file):
+                logger.error(f"Audio file not created: {audio_file}")
+                return None, "Failed to create audio file.", 500
+            logger.info(f"Audio file generated in {time.time() - tts_start:.2f} seconds: {audio_file}, size: {os.path.getsize(audio_file)} bytes")
+            audio_cache[cache_key] = audio_file
+            return audio_file, None, 200
+        except HTTPError as e:
+            if e.response.status_code == 429:
+                logger.warning(f"gTTS 429 error on attempt {attempt + 1}: {str(e)}")
+                if attempt < max_attempts - 1:
+                    time.sleep(2 ** attempt)  # Exponential backoff
+                else:
+                    logger.error(f"gTTS failed after {max_attempts} attempts: {str(e)}")
+                    return None, "TTS API rate limit exceeded. Please try again later.", 429
+            else:
+                logger.error(f"gTTS error: {str(e)}")
+                delete_file_with_retry(audio_file)
+                return None, "Failed to generate audio.", 500
+        except Exception as e:
+            logger.error(f"gTTS error: {str(e)}")
+            delete_file_with_retry(audio_file)
+            return None, "Failed to generate audio.", 500
 
 def parse_request_json():
     try:
@@ -319,10 +362,16 @@ def get_debate_response():
     if not all([user_message, topic, stance, level]):
         return jsonify({"error": "Message, topic, stance, and level are required"}), 400
 
-    ai_response = get_gemini_response(user_message, topic, stance, level)
-    audio_file = get_tts_audio(ai_response)
-    if not audio_file:
-        return jsonify({"error": "Failed to generate audio file"}), 500
+    # Clean up old audio files before generating new ones
+    clean_old_audio_files()
+
+    ai_response, error_message, status_code = get_gemini_response(user_message, topic, stance, level)
+    if error_message:
+        return jsonify({"error": error_message}), status_code
+
+    audio_file, error_message, status_code = get_tts_audio(ai_response)
+    if error_message:
+        return jsonify({"error": error_message}), status_code
 
     return jsonify({
         "message": ai_response,
