@@ -18,6 +18,7 @@ import re
 import glob
 from datetime import datetime, timedelta
 from requests.exceptions import HTTPError
+import google.api_core.exceptions
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -33,7 +34,8 @@ CORS(application, resources={
     r"/api/*": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
     r"/signup": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
     r"/login": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
-    r"/profile": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]}
+    r"/profile": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
+    r"/debug/api-key": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]}
 })
 
 # Environment variables
@@ -47,9 +49,9 @@ if not MONGO_URI or not GEMINI_API_KEY:
     logger.critical("Missing required environment variables: MONGO_URI or GEMINI_API_KEY")
     raise EnvironmentError("MONGO_URI or GEMINI_API_KEY not configured")
 
-# Log environment variables for debugging (remove in production)
+# Log environment variables for debugging (obscure API key for safety)
 logger.debug(f"MONGO_URI set: {'Yes' if MONGO_URI else 'No'}")
-logger.debug(f"GEMINI_API_KEY set: {'Yes' if GEMINI_API_KEY else 'No'}")
+logger.debug(f"GEMINI_API_KEY: {GEMINI_API_KEY[:4]}...{GEMINI_API_KEY[-4:] if GEMINI_API_KEY else 'Not set'}")
 logger.debug(f"BACKEND_URL: {BACKEND_URL}")
 logger.debug(f"PORT: {PORT}")
 
@@ -243,6 +245,21 @@ def parse_request_json():
     except Exception as e:
         logger.error(f"Failed to parse JSON: {str(e)}")
         return None, jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+
+@application.route('/debug/api-key', methods=['GET'])
+def debug_api_key():
+    """Debug endpoint to verify Gemini API key validity."""
+    logger.info("Debug API key endpoint called")
+    try:
+        # Perform a simple API call to test the key
+        test_response = llm.invoke("Test prompt to verify API key")
+        return jsonify({"message": "Gemini API key is valid", "response": str(test_response)}), 200
+    except InvalidArgument as e:
+        logger.error(f"Invalid API key: {str(e)}")
+        return jsonify({"error": f"Invalid API key: {str(e)}. Please check your configuration."}), 400
+    except Exception as e:
+        logger.error(f"API key test failed: {str(e)}")
+        return jsonify({"error": "Failed to validate API key. Please try again."}), 500
 
 @application.route('/signup', methods=['POST'])
 def signup():
