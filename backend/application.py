@@ -1,8 +1,7 @@
+from dotenv import load_dotenv
 from flask import Flask, request, jsonify, send_file
 from flask_pymongo import PyMongo
 from flask_cors import CORS
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 from gtts import gTTS
 import os
@@ -16,69 +15,50 @@ from langchain_core.output_parsers import StrOutputParser
 from google.api_core.exceptions import ResourceExhausted, InvalidArgument
 import hashlib
 import re
-from pymongo.errors import ConnectionFailure
-import glob
-import stat
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Load environment variables
+load_dotenv()
+
 application = Flask(__name__)
 
 # Enable CORS for all required endpoints
 CORS(application, resources={
-    r"/*": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]}
+    r"/api/*": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
+    r"/signup": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
+    r"/login": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
+    r"/profile": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]}
 })
 
-# Load environment variables
-MONGO_URI = os.getenv("MONGO_URI")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:5000")
-PORT = int(os.getenv("PORT", 5000))
+# Environment variables
+MONGO_URI = os.getenv('MONGO_URI')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+BACKEND_URL = os.getenv('BACKEND_URL', 'https://virtual-ai-debate.onrender.com')
+PORT = int(os.getenv('PORT', 5000))
 
 # Validate environment variables
-if not MONGO_URI:
-    logger.critical("MONGO_URI not configured.")
-    raise EnvironmentError("Missing MONGO_URI configuration.")
-if not GEMINI_API_KEY:
-    logger.critical("GEMINI_API_KEY not configured.")
-    raise EnvironmentError("Missing GEMINI_API_KEY configuration.")
+if not MONGO_URI or not GEMINI_API_KEY:
+    logger.critical("Missing required environment variables: MONGO_URI or GEMINI_API_KEY")
+    raise EnvironmentError("MONGO_URI or GEMINI_API_KEY not configured")
 
 # MongoDB configuration
 application.config["MONGO_URI"] = MONGO_URI
 mongo = PyMongo(application)
 
-# Verify MongoDB connection with retry
-max_retries = 3
-for attempt in range(max_retries):
-    try:
-        mongo.db.command("ping")
-        logger.info("Successfully connected to MongoDB")
-        break
-    except ConnectionFailure as e:
-        logger.error(f"Attempt {attempt + 1} failed to connect to MongoDB: {str(e)}")
-        if attempt < max_retries - 1:
-            time.sleep(2)
-        else:
-            logger.critical("MongoDB connection failed after retries.")
-            raise Exception("MongoDB connection failed. Please check the URI and network settings.")
+# Verify MongoDB connection
+try:
+    mongo.db.command("ping")
+    logger.info("Successfully connected to MongoDB")
+except Exception as e:
+    logger.error(f"Failed to connect to MongoDB: {str(e)}")
+    raise Exception("MongoDB connection failed. Please check the URI and network settings.")
 
 # Create temporary directory for audio files
-TEMP_AUDIO_DIR = os.path.join(os.getcwd(), "temp_audio")
-def ensure_directory_writable(directory):
-    os.makedirs(directory, exist_ok=True)
-    os.chmod(directory, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)  # Full permissions
-    logger.info(f"Ensured directory is writable: {directory}")
-ensure_directory_writable(TEMP_AUDIO_DIR)
-
-# Rate limiter setup
-limiter = Limiter(
-    get_remote_address,
-    app=application,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://"
-)
+TEMP_AUDIO_DIR = os.path.join('/tmp', 'temp_audio')
+os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 
 llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-flash",
@@ -129,14 +109,6 @@ def sanitize_input(text):
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
-def cleanup_old_audio_files(max_age_seconds=3600):
-    """Clean up audio files older than max_age_seconds."""
-    now = time.time()
-    for file in glob.glob(os.path.join(TEMP_AUDIO_DIR, "*.mp3")):
-        if os.path.getmtime(file) < now - max_age_seconds:
-            delete_file_with_retry(file)
-            logger.info(f"Cleaned up old audio file: {file}")
-
 def get_gemini_response(user_message, topic, stance, level):
     logger.info(f"Generating Gemini response for topic: {topic}, stance: {stance}, level: {level}, message: {user_message}")
     user_message = sanitize_input(user_message)
@@ -146,13 +118,14 @@ def get_gemini_response(user_message, topic, stance, level):
     
     if not user_message or not topic or not stance or not level:
         logger.error("Invalid input after sanitization")
-        return jsonify({"error": "Invalid input provided."}), 400
+        return "Sorry, the input is invalid. Please provide a valid argument, topic, stance, and level."
     
     if level not in ALLOWED_LEVELS:
         logger.error(f"Invalid debate level: {level}")
-        return jsonify({"error": "Invalid debate level. Choose Beginner, Intermediate, Advanced, or Expert."}), 400
+        return "Sorry, the selected debate level is invalid. Please choose Beginner, Intermediate, Advanced, or Expert."
 
     logger.debug(f"Sanitized inputs - message: {user_message}, topic: {topic}, stance: {stance}, level: {level}")
+    logger.debug(f"Input character codes: {[ord(c) for c in user_message]}")
     start_time = time.time()
     try:
         response = chain.invoke({
@@ -169,16 +142,13 @@ def get_gemini_response(user_message, topic, stance, level):
         return response
     except ResourceExhausted as e:
         logger.error(f"Gemini API quota exceeded: {str(e)}")
-        return jsonify({
-            "error": "API quota exceeded. Please try again later or check your Gemini API plan.",
-            "details": str(e)
-        }), 429
+        return "Sorry, we've reached our API quota. Please try again later or check your Gemini API plan at https://ai.google.dev/gemini-api/docs/rate-limits."
     except InvalidArgument as e:
         logger.error(f"Invalid argument in Gemini API call: {str(e)}")
-        return jsonify({"error": "Invalid input for Gemini API."}), 400
+        return "Sorry, the input was invalid. Please try a different argument."
     except Exception as e:
         logger.error(f"LangChain/Gemini API error: {str(e)}")
-        return jsonify({"error": "Failed to generate response."}), 500
+        return "I understand your point, but let's consider another perspective."
 
 def delete_file_with_retry(filename, max_attempts=5, delay=2):
     for attempt in range(max_attempts):
@@ -216,7 +186,6 @@ def get_tts_audio(text):
             return None
         logger.info(f"Audio file generated in {time.time() - tts_start:.2f} seconds: {audio_file}, size: {os.path.getsize(audio_file)} bytes")
         audio_cache[cache_key] = audio_file
-        cleanup_old_audio_files()  # Clean up old files
         return audio_file
     except Exception as e:
         logger.error(f"gTTS error: {str(e)}")
@@ -231,11 +200,6 @@ def parse_request_json():
     except Exception as e:
         logger.error(f"Failed to parse JSON: {str(e)}")
         return None, jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
-
-@application.errorhandler(Exception)
-def handle_exception(e):
-    logger.error(f"Unhandled exception: {str(e)}", exc_info=True)
-    return jsonify({"error": "An unexpected error occurred. Please try again later."}), 500
 
 @application.route('/signup', methods=['POST'])
 def signup():
@@ -341,7 +305,6 @@ def profile():
         return jsonify({"error": "Failed to fetch profile"}), 500
 
 @application.route('/api/debate/response', methods=['POST'])
-@limiter.limit("10 per minute")  # Rate limit to 10 requests per minute
 def get_debate_response():
     logger.info("Debate response endpoint called")
     data, error_response = parse_request_json()
@@ -357,9 +320,6 @@ def get_debate_response():
         return jsonify({"error": "Message, topic, stance, and level are required"}), 400
 
     ai_response = get_gemini_response(user_message, topic, stance, level)
-    if isinstance(ai_response, tuple):  # Error response from get_gemini_response
-        return ai_response
-
     audio_file = get_tts_audio(ai_response)
     if not audio_file:
         return jsonify({"error": "Failed to generate audio file"}), 500
@@ -413,6 +373,12 @@ def complete_debate():
 def index():
     logger.info("Root endpoint called")
     return jsonify({"message": "Welcome to DebateAI API"}), 200
+
+# Global error handler
+@application.errorhandler(Exception)
+def handle_error(error):
+    logger.error(f"Unhandled error: {str(error)}", exc_info=True)
+    return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
     logger.info("Starting Flask server for local development")
