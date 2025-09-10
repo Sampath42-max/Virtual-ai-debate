@@ -34,7 +34,7 @@ CORS(application, resources={
 
 # Hardcoded environment variables
 MONGO_URI = "mongodb+srv://sampathkumar4008:ea9IEuPRxnWyrcHE@debateai.mne98el.mongodb.net/debateai?retryWrites=true&w=majority&appName=DEBATEAI"
-GEMINI_API_KEY = "AIzaSyBcqaxF_91AGd0nmtPCMiSREN_UI0jmUEY"
+GEMINI_API_KEY = "AIzaSyDDEa0YiVKWU_kc8AIdaPORkYTURv2e2Dg"
 BACKEND_URL = "https://virtual-ai-debate.onrender.com"
 PORT = 5000
 
