@@ -15,6 +15,7 @@ const Signup = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -45,6 +46,7 @@ const Signup = () => {
     }
 
     try {
+      setIsSubmitting(true);
       const data = await signup(name, email, password, confirmPassword);
       localStorage.setItem("user", JSON.stringify({
         name: data.user.name,
@@ -64,6 +66,8 @@ const Signup = () => {
         description:
           err.error || "Failed to connect to the server. Please try again.",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -135,8 +139,8 @@ const Signup = () => {
               </span>
             </div>
           </div>
-          <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700">
-            Sign Up
+          <Button type="submit" disabled={isSubmitting} className="w-full bg-purple-600 hover:bg-purple-700">
+            {isSubmitting ? "Creating account..." : "Sign Up"}
           </Button>
         </form>
         <p className="text-gray-400 text-center mt-4">

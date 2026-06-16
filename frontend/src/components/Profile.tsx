@@ -12,8 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { API_URL } from "@/services/api";
 
 const Profile = () => {
   const [user, setUser] = useState(null);

@@ -6,8 +6,7 @@ import Profile from "./Profile";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
-
-const API_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+import { API_URL } from "@/services/api";
 
 const Navigation = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);

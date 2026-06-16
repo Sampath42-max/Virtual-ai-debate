@@ -11,9 +11,8 @@ import FeedbackPage from "./components/FeedbackPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useToast } from "@/components/ui/use-toast";
 import NotFound from "./pages/NotFound";
+import { API_URL } from "@/services/api";
 
-
-const API_URL = import.meta.env.VITE_API_BASE_URL;
 
 const AppContent = () => {
   const navigate = useNavigate();
@@ -94,7 +93,7 @@ const AppContent = () => {
 
 const App = () => {
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AppContent />
     </Router>
   );

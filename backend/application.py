@@ -14,57 +14,84 @@ from langchain_core.output_parsers import StrOutputParser
 from google.api_core.exceptions import ResourceExhausted, InvalidArgument
 import hashlib
 import re
+from dotenv import load_dotenv
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 application = Flask(__name__)
+load_dotenv()
 
-# Enable CORS for all required endpoints
+# Enable CORS for local development, production, and Vercel preview deployments.
 CORS(application, resources={
-    
-    r"/api/*": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
-    r"/signup": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
-    r"/login": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]},
-    r"/profile": {"origins": ["http://localhost:8080", "https://virtual-ai-debate.vercel.app"]}
+    r"/*": {
+        "origins": [
+            "http://localhost:8080",
+            "http://localhost:5173",
+            "https://virtual-ai-debate.vercel.app",
+            r"https://.*\.vercel\.app",
+        ]
+    }
 })
 
 
 
-# Hardcoded environment variables
-MONGO_URI = "mongodb+srv://sampathkumar4008:oiZzrmrpw4TS7AMr@debateai.mne98el.mongodb.net//debateai?retryWrites=true&w=majority&appName=DEBATEAI"
-GEMINI_API_KEY = "AIzaSyDDEa0YiVKWU_kc8AIdaPORkYTURv2e2Dg"
-BACKEND_URL = "https://virtual-ai-debate.onrender.com"
-PORT = 5000
+def normalize_mongo_uri(uri):
+    """Fix an accidental double slash before the database name."""
+    return uri.replace(".mongodb.net//", ".mongodb.net/", 1)
+
+
+def with_mongo_timeouts(uri):
+    if not uri:
+        return uri
+
+    parts = urlsplit(uri)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query.setdefault("serverSelectionTimeoutMS", "5000")
+    query.setdefault("connectTimeoutMS", "5000")
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+MONGO_URI = with_mongo_timeouts(normalize_mongo_uri(os.getenv("MONGO_URI", "")))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:5000").rstrip("/")
+PORT = int(os.getenv("PORT", "5000"))
 
 # MongoDB configuration
-application.config["MONGO_URI"] = MONGO_URI
-if not application.config["MONGO_URI"]:
-    logger.critical("MONGO_URI not configured. Please check the code.")
-    raise EnvironmentError("Missing MONGO_URI configuration.")
+mongo = None
+if MONGO_URI:
+    application.config["MONGO_URI"] = MONGO_URI
+    mongo = PyMongo(application)
+else:
+    logger.error("MONGO_URI not configured. Database endpoints will return errors until it is set.")
 
-mongo = PyMongo(application)
+if not GEMINI_API_KEY:
+    logger.error("GEMINI_API_KEY not configured. Debate response generation will be unavailable until it is set.")
 
-# Verify MongoDB connection
-try:
-    mongo.db.command("ping")
-    logger.info("Successfully connected to MongoDB")
-except Exception as e:
-    logger.error(f"Failed to connect to MongoDB: {str(e)}")
-    raise Exception("MongoDB connection failed. Please check the URI and network settings.")
+
+# Verify MongoDB connection without preventing the web server from starting.
+if mongo:
+    try:
+        mongo.db.command("ping")
+        logger.info("Successfully connected to MongoDB")
+    except Exception as e:
+        logger.error(f"MongoDB ping failed during startup: {str(e)}")
 
 # Create temporary directory for audio files
 TEMP_AUDIO_DIR = os.path.join(os.getcwd(), "temp_audio")
 os.makedirs(TEMP_AUDIO_DIR, exist_ok=True)
 
-llm = ChatGoogleGenerativeAI(
-    model="gemini-1.5-flash",
-    google_api_key=GEMINI_API_KEY,
-    max_retries=3,
-    temperature=0.7,
-    max_output_tokens=150
-)
+llm = None
+if GEMINI_API_KEY:
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-1.5-flash",
+        google_api_key=GEMINI_API_KEY,
+        max_retries=3,
+        temperature=0.7,
+        max_output_tokens=150
+    )
 
 prompt_template = PromptTemplate(
     input_variables=["topic", "stance", "user_message", "level"],
@@ -87,7 +114,7 @@ Always respond only in English. Your reply should directly challenge or build up
 )
 
 # Create LangChain pipeline
-chain = prompt_template | llm | StrOutputParser()
+chain = prompt_template | llm | StrOutputParser() if llm else None
 
 # Audio cache to avoid regenerating identical responses
 audio_cache = {}
@@ -97,6 +124,12 @@ password_regex = re.compile(r'^[a-zA-Z][a-zA-Z0-9!@#$%^&*]{7,}$')
 
 # Allowed debate levels
 ALLOWED_LEVELS = {"Beginner", "Intermediate", "Advanced", "Expert"}
+
+
+def get_db():
+    if not mongo:
+        raise RuntimeError("MongoDB is not configured. Set MONGO_URI in the deployment environment.")
+    return mongo.db
 
 def sanitize_input(text):
     """Sanitize input by removing non-printable characters and excessive whitespace."""
@@ -121,6 +154,10 @@ def get_gemini_response(user_message, topic, stance, level):
     if level not in ALLOWED_LEVELS:
         logger.error(f"Invalid debate level: {level}")
         return "Sorry, the selected debate level is invalid. Please choose Beginner, Intermediate, Advanced, or Expert."
+
+    if not chain:
+        logger.error("Gemini chain is unavailable because GEMINI_API_KEY is not configured")
+        return "Sorry, the AI service is not configured yet. Please try again later."
 
     logger.debug(f"Sanitized inputs - message: {user_message}, topic: {topic}, stance: {stance}, level: {level}")
     logger.debug(f"Input character codes: {[ord(c) for c in user_message]}")
@@ -200,6 +237,7 @@ def parse_request_json():
         return None, jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
 
 
+@application.route('/api/signup', methods=['POST'])
 @application.route('/signup', methods=['POST'])
 def signup():
     logger.info("Signup endpoint called")
@@ -222,11 +260,12 @@ def signup():
         }), 400
 
     try:
-        if mongo.db.users.find_one({"email": email}):
+        db = get_db()
+        if db.users.find_one({"email": email}):
             return jsonify({"error": "Email already registered"}), 400
 
         hashed_password = generate_password_hash(password)
-        mongo.db.users.insert_one({
+        db.users.insert_one({
             "name": name,
             "email": email,
             "password": hashed_password,
@@ -246,6 +285,7 @@ def signup():
         logger.error(f"Signup failed: {str(e)}")
         return jsonify({"error": "Failed to register user"}), 500
 
+@application.route('/api/login', methods=['POST'])
 @application.route('/login', methods=['POST'])
 def login():
     logger.info("Login endpoint called")
@@ -260,7 +300,7 @@ def login():
         return jsonify({"error": "Email and password are required"}), 400
 
     try:
-        user = mongo.db.users.find_one({"email": email})
+        user = get_db().users.find_one({"email": email})
         if user and check_password_hash(user['password'], password):
             return jsonify({
                 "message": "Login successful",
@@ -276,6 +316,7 @@ def login():
         logger.error(f"Login failed: {str(e)}")
         return jsonify({"error": "Failed to login"}), 500
 
+@application.route('/api/profile', methods=['POST'])
 @application.route('/profile', methods=['POST'])
 def profile():
     logger.info("Profile endpoint called")
@@ -288,7 +329,7 @@ def profile():
         return jsonify({"error": "Email is required"}), 400
 
     try:
-        user = mongo.db.users.find_one({"email": email})
+        user = get_db().users.find_one({"email": email})
         if user:
             return jsonify({
                 "user": {
@@ -357,9 +398,10 @@ def complete_debate():
         return jsonify({"error": "Email is required"}), 400
 
     try:
-        user = mongo.db.users.find_one({"email": email})
+        db = get_db()
+        user = db.users.find_one({"email": email})
         if user:
-            mongo.db.users.update_one(
+            db.users.update_one(
                 {"email": email},
                 {"$inc": {"debates_attended": 1}}
             )
@@ -373,6 +415,15 @@ def complete_debate():
 def index():
     logger.info("Root endpoint called")
     return jsonify({"message": "Welcome to DebateAI API"}), 200
+
+
+@application.route('/health')
+def health():
+    return jsonify({
+        "status": "ok",
+        "mongo_configured": bool(MONGO_URI),
+        "gemini_configured": bool(GEMINI_API_KEY),
+    }), 200
 
 if __name__ == '__main__':
     logger.info("Starting Flask server for local development")

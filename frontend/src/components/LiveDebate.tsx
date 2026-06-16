@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Mic, MicOff, User, Bot, Clock, X } from "lucide-react";
+import { API_URL } from "@/services/api";
 
 interface DebateMessage {
   speaker: "user" | "ai";
@@ -14,8 +15,6 @@ interface DebateState {
   stance: string;
   level: string;
 }
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://virtual-ai-debate.onrender.com";
 
 const LiveDebate = () => {
   const location = useLocation();
@@ -170,7 +169,7 @@ const LiveDebate = () => {
         controller.abort();
       }, 20000);
 
-      const response = await fetch(`${API_BASE_URL}/api/debate/response`, {
+      const response = await fetch(`${API_URL}/api/debate/response`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -209,7 +208,7 @@ const LiveDebate = () => {
       }
     } catch (error: any) {
       console.error("API error:", error);
-      let errorMessage = `Failed to connect to the server. Please ensure the backend is running on ${API_BASE_URL}.`;
+      let errorMessage = `Failed to connect to the server. Please ensure the backend is running on ${API_URL}.`;
       if (error.name === "AbortError") {
         errorMessage = "API request timed out after 20 seconds. Please try again.";
       } else if (error.message && error.message.includes("CORS")) {
@@ -299,7 +298,7 @@ const LiveDebate = () => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     if (user.email) {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/debate/complete`, {
+        const response = await fetch(`${API_URL}/api/debate/complete`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email: user.email }),
