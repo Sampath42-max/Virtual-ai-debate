@@ -141,6 +141,17 @@ def get_db():
         raise RuntimeError("MongoDB is not configured. Set MONGO_URI in the deployment environment.")
     return mongo.db
 
+
+def get_mongo_status():
+    if not mongo:
+        return {"configured": False, "connected": False, "error": "MONGO_URI is not set"}
+
+    try:
+        mongo.db.command("ping")
+        return {"configured": True, "connected": True}
+    except Exception as e:
+        return {"configured": True, "connected": False, "error": str(e)}
+
 def sanitize_input(text):
     """Sanitize input by removing non-printable characters and excessive whitespace."""
     if not isinstance(text, str):
@@ -292,7 +303,7 @@ def signup():
             }
         }), 201
     except Exception as e:
-        logger.error(f"Signup failed: {str(e)}")
+        logger.exception("Signup failed")
         return jsonify({"error": "Failed to register user"}), 500
 
 @application.route('/api/login', methods=['POST'])
@@ -431,7 +442,7 @@ def index():
 def health():
     return jsonify({
         "status": "ok",
-        "mongo_configured": bool(MONGO_URI),
+        "mongo": get_mongo_status(),
         "gemini_configured": bool(GEMINI_API_KEY),
     }), 200
 
