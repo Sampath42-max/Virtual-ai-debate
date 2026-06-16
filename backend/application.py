@@ -16,6 +16,7 @@ import hashlib
 import re
 from dotenv import load_dotenv
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from werkzeug.exceptions import HTTPException
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -23,6 +24,15 @@ logger = logging.getLogger(__name__)
 
 application = Flask(__name__)
 load_dotenv()
+
+
+@application.errorhandler(Exception)
+def handle_unexpected_error(error):
+    if isinstance(error, HTTPException):
+        return jsonify({"error": error.description}), error.code
+
+    logger.exception("Unhandled application error")
+    return jsonify({"error": "Internal server error"}), 500
 
 # Enable CORS for local development, production, and Vercel preview deployments.
 CORS(application, resources={
@@ -234,7 +244,7 @@ def parse_request_json():
         return data, None
     except Exception as e:
         logger.error(f"Failed to parse JSON: {str(e)}")
-        return None, jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400
+        return None, (jsonify({"error": f"Invalid JSON format: {str(e)}"}), 400)
 
 
 @application.route('/api/signup', methods=['POST'])
