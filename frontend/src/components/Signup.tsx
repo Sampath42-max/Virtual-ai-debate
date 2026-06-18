@@ -72,80 +72,80 @@ const Signup = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-900">
-      <div className="w-full max-w-md p-8 bg-gray-800 rounded-lg shadow-lg">
+    <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+      <div className="w-full max-w-md p-8 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl">
         <h2 className="text-2xl font-bold text-white mb-6 text-center">Sign Up</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="name" className="text-gray-300">Name</Label>
+            <Label htmlFor="name" className="text-zinc-300">Name</Label>
             <Input
               id="name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="bg-gray-700 text-white border-gray-600"
+              className="bg-zinc-850 text-white border-zinc-800 focus:border-indigo-500 focus:ring-indigo-500"
               required
             />
           </div>
           <div>
-            <Label htmlFor="email" className="text-gray-300">Email</Label>
+            <Label htmlFor="email" className="text-zinc-300">Email</Label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="bg-gray-700 text-white border-gray-600"
+              className="bg-zinc-850 text-white border-zinc-800 focus:border-indigo-500 focus:ring-indigo-500"
               required
             />
           </div>
           <div>
-            <Label htmlFor="password" className="text-gray-300">Password</Label>
+            <Label htmlFor="password" className="text-zinc-300">Password</Label>
             <div className="relative">
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-gray-700 text-white border-gray-600 pr-10"
+                className="bg-zinc-850 text-white border-zinc-800 focus:border-indigo-500 focus:ring-indigo-500 pr-10"
                 required
               />
               <span
-                className="absolute right-3 top-2.5 text-gray-400 cursor-pointer"
+                className="absolute right-3 top-2.5 text-zinc-400 cursor-pointer"
                 onClick={() => setShowPassword(!showPassword)}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </span>
             </div>
-            <p className="text-sm text-gray-400 mt-1">
+            <p className="text-sm text-zinc-500 mt-1">
               Password must be 8+ characters, start with a letter, and include alphabets, numbers, and symbols.
             </p>
           </div>
           <div>
-            <Label htmlFor="confirmPassword" className="text-gray-300">Confirm Password</Label>
+            <Label htmlFor="confirmPassword" className="text-zinc-300">Confirm Password</Label>
             <div className="relative">
               <Input
                 id="confirmPassword"
                 type={showConfirmPassword ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="bg-gray-700 text-white border-gray-600 pr-10"
+                className="bg-zinc-850 text-white border-zinc-800 focus:border-indigo-500 focus:ring-indigo-500 pr-10"
                 required
               />
               <span
-                className="absolute right-3 top-2.5 text-gray-400 cursor-pointer"
+                className="absolute right-3 top-2.5 text-zinc-400 cursor-pointer"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
               >
                 {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </span>
             </div>
           </div>
-          <Button type="submit" disabled={isSubmitting} className="w-full bg-purple-600 hover:bg-purple-700">
+          <Button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm transition-colors mt-2">
             {isSubmitting ? "Creating account..." : "Sign Up"}
           </Button>
         </form>
-        <p className="text-gray-400 text-center mt-4">
+        <p className="text-zinc-400 text-center mt-4">
           Already have an account?{" "}
-          <a href="/login" className="text-purple-400 hover:underline">
+          <a href="/login" className="text-indigo-400 hover:text-indigo-300 hover:underline">
             Log in
           </a>
         </p>

@@ -1,4 +1,3 @@
-
 import { useLocation, useNavigate } from "react-router-dom";
 import { Star, Trophy, MessageSquare, Clock, ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -83,16 +82,16 @@ const FeedbackPage = () => {
   };
 
   return (
-    <div className="min-h-screen pt-16">
+    <div className="min-h-screen pt-16 bg-zinc-950">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center mb-12">
-          <div className="inline-block p-4 bg-green-500/20 rounded-full mb-6">
-            <Trophy size={48} className="text-green-400" />
+          <div className="inline-block p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-6">
+            <Trophy size={48} className="text-emerald-400" />
           </div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
             <span className="gradient-text">Debate Complete!</span>
           </h1>
-          <p className="text-lg text-gray-300">
+          <p className="text-lg text-zinc-400">
             Here's your performance summary
           </p>
         </div>
@@ -100,40 +99,40 @@ const FeedbackPage = () => {
         {/* Performance Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           <div className="glass-card rounded-xl p-6 text-center">
-            <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <MessageSquare size={24} className="text-blue-400" />
+            <div className="w-12 h-12 bg-indigo-600/10 border border-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <MessageSquare size={24} className="text-indigo-400" />
             </div>
             <div className="text-2xl font-bold text-white mb-2">
               {performanceData.totalMessages}
             </div>
-            <div className="text-gray-400">Messages Sent</div>
+            <div className="text-zinc-400">Messages Sent</div>
           </div>
 
           <div className="glass-card rounded-xl p-6 text-center">
-            <div className="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <MessageSquare size={24} className="text-purple-400" />
+            <div className="w-12 h-12 bg-zinc-800 border border-zinc-700/50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <MessageSquare size={24} className="text-zinc-300" />
             </div>
             <div className="text-2xl font-bold text-white mb-2">
               {performanceData.totalWords}
             </div>
-            <div className="text-gray-400">Total Words</div>
+            <div className="text-zinc-400">Total Words</div>
           </div>
 
           <div className="glass-card rounded-xl p-6 text-center">
-            <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Clock size={24} className="text-green-400" />
+            <div className="w-12 h-12 bg-indigo-600/10 border border-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Clock size={24} className="text-indigo-400" />
             </div>
             <div className="text-2xl font-bold text-white mb-2">
               {performanceData.duration}
             </div>
-            <div className="text-gray-400">Minutes Debated</div>
+            <div className="text-zinc-400">Minutes Debated</div>
           </div>
         </div>
 
         {/* Rating Section */}
         <div className="glass-card rounded-xl p-8 mb-8">
           <div className="text-center">
-            <h2 className="text-2xl font-bold mb-6">Your Performance Rating</h2>
+            <h2 className="text-2xl font-bold mb-6 text-white">Your Performance Rating</h2>
             
             <div className="mb-6">
               <div className="flex justify-center gap-2 mb-4">
@@ -144,9 +143,9 @@ const FeedbackPage = () => {
                     className={`transition-all duration-500 ${
                       star <= rating
                         ? showAnimation
-                          ? "text-yellow-400 fill-yellow-400 animate-pulse"
-                          : "text-yellow-400 fill-yellow-400"
-                        : "text-gray-600"
+                          ? "text-amber-400 fill-amber-400 animate-pulse"
+                          : "text-amber-400 fill-amber-400"
+                        : "text-zinc-700"
                     }`}
                     style={{ 
                       animationDelay: showAnimation ? `${star * 100}ms` : '0ms'
@@ -154,10 +153,10 @@ const FeedbackPage = () => {
                   />
                 ))}
               </div>
-              <div className="text-xl font-semibold text-yellow-400 mb-2">
+              <div className="text-xl font-semibold text-amber-400 mb-2">
                 {getRatingCategory(rating)}
               </div>
-              <p className="text-gray-300 max-w-md mx-auto">
+              <p className="text-zinc-400 max-w-md mx-auto">
                 {getRatingMessage(rating)}
               </p>
             </div>
@@ -166,18 +165,18 @@ const FeedbackPage = () => {
 
         {/* Debate Summary */}
         <div className="glass-card rounded-xl p-6 mb-8">
-          <h3 className="text-xl font-semibold mb-4">Debate Summary</h3>
+          <h3 className="text-xl font-semibold mb-4 text-white">Debate Summary</h3>
           <div className="space-y-3">
             <div className="flex justify-between items-center">
-              <span className="text-gray-400">Topic:</span>
+              <span className="text-zinc-500">Topic:</span>
               <span className="text-white font-medium">{performanceData.topic}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-gray-400">Duration:</span>
+              <span className="text-zinc-500">Duration:</span>
               <span className="text-white font-medium">{performanceData.duration} minutes</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-gray-400">Participation:</span>
+              <span className="text-zinc-500">Participation:</span>
               <span className="text-white font-medium">
                 {performanceData.totalMessages > 5 ? "Active" : "Moderate"}
               </span>
@@ -189,7 +188,7 @@ const FeedbackPage = () => {
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
             onClick={() => navigate("/topics")}
-            className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+            className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/10 animate-fade-in"
           >
             Start New Debate
             <ArrowRight size={20} />
@@ -197,7 +196,7 @@ const FeedbackPage = () => {
           
           <button
             onClick={() => navigate("/")}
-            className="px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-semibold rounded-lg transition-colors border border-white/20"
+            className="px-6 py-3 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-semibold rounded-lg transition-colors border border-zinc-800"
           >
             Back to Home
           </button>

@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Mic, MicOff, User, Bot, Clock, X } from "lucide-react";
+import { Mic, MicOff, User, Bot, Clock, X, Send, Volume2 } from "lucide-react";
 import { API_URL } from "@/services/api";
 
 interface DebateMessage {
   speaker: "user" | "ai";
   message: string;
   timestamp: Date;
+  audioUrl?: string; // Cache URL to replay audio
 }
 
 interface DebateState {
@@ -32,11 +33,15 @@ const LiveDebate = () => {
   const [error, setError] = useState<string | null>(null);
   const [textInput, setTextInput] = useState("");
   const [isLoadingResponse, setIsLoadingResponse] = useState(false);
-  const [aiAudioUrl, setAiAudioUrl] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const transcriptAccumulatorRef = useRef("");
+  const currentTranscriptRef = useRef("");
+  const hasSubmittedRef = useRef(false);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -47,9 +52,18 @@ const LiveDebate = () => {
     }
 
     const recognition = new window.webkitSpeechRecognition();
-    recognition.continuous = true;
-    recognition.intermResults = true;
+    recognition.continuous = true; // Use continuous to avoid quick silent timeouts
+    recognition.interimResults = true;
     recognition.lang = "en-US";
+
+    recognition.onstart = () => {
+      console.log("Speech recognition started");
+      transcriptAccumulatorRef.current = "";
+      currentTranscriptRef.current = "";
+      hasSubmittedRef.current = false;
+      setCurrentTranscript("");
+      setError(null);
+    };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       console.log("Speech recognition onresult triggered");
@@ -65,19 +79,15 @@ const LiveDebate = () => {
         }
       }
 
-      setCurrentTranscript(interimTranscript);
-
       if (finalTranscript) {
-        console.log("Final transcript:", finalTranscript);
-        const newMessage: DebateMessage = {
-          speaker: "user",
-          message: finalTranscript.trim(),
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, newMessage]);
-        setCurrentTranscript("");
-        generateAIResponse(finalTranscript.trim());
+        transcriptAccumulatorRef.current += finalTranscript;
+        // Stop recognition upon receiving the first final transcript to prevent hearing AI response
+        recognition.stop();
       }
+
+      const fullText = (transcriptAccumulatorRef.current + interimTranscript).trim();
+      currentTranscriptRef.current = fullText;
+      setCurrentTranscript(fullText);
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
@@ -86,9 +96,11 @@ const LiveDebate = () => {
       if (event.error === "no-speech") {
         errorMessage = "No speech detected. Please try speaking again.";
       } else if (event.error === "audio-capture") {
-        errorMessage = "Microphone access denied. Please allow microphone permissions.";
+        errorMessage = "Microphone access failed. Please ensure your microphone is plugged in.";
+      } else if (event.error === "not-allowed") {
+        errorMessage = "Microphone permission denied or blocked. Please allow microphone access in your browser settings.";
       } else if (event.error === "network") {
-        errorMessage = "Network issue with speech recognition. Please check your connection.";
+        errorMessage = "Network issue with speech recognition. Chrome's Web Speech API requires an active internet connection to contact Google's speech recognition servers. Please check your internet connection, verify you are using Chrome/Edge on http://localhost:5173 (not an IP address), and ensure no VPN or proxy is blocking 'google.com/speech-api'.";
       }
       setError(errorMessage);
       setIsListening(false);
@@ -99,6 +111,21 @@ const LiveDebate = () => {
       console.log("Speech recognition ended");
       setIsListening(false);
       setIsUserSpeaking(false);
+
+      // Auto-submit whatever we heard
+      const textToSend = currentTranscriptRef.current.trim();
+      if (textToSend && !hasSubmittedRef.current) {
+        hasSubmittedRef.current = true;
+        const newMessage: DebateMessage = {
+          speaker: "user",
+          message: textToSend,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, newMessage]);
+        setCurrentTranscript("");
+        currentTranscriptRef.current = "";
+        generateAIResponse(textToSend);
+      }
     };
 
     recognitionRef.current = recognition;
@@ -131,22 +158,24 @@ const LiveDebate = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Play AI audio immediately after message is added
+  // Initialize audio element and handle cleanup
   useEffect(() => {
-    if (aiAudioUrl && messages.some((msg) => msg.speaker === "ai")) {
-      console.log("Playing AI audio:", aiAudioUrl);
-      const audio = new Audio(aiAudioUrl);
-      audio.play().catch((err) => {
-        console.error("Audio playback error:", err);
-        if (err.message.includes("404")) {
-          setError("Audio file not found on server. The response is available in text.");
-        } else {
-          setError("Failed to play AI response audio. The response is available in text.");
-        }
-      });
-      setAiAudioUrl(null);
+    audioRef.current = new Audio();
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
+    };
+  }, []);
+
+  const unlockAudio = () => {
+    if (audioRef.current) {
+      // Play a split second of silence to unlock browser autoplay context
+      audioRef.current.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAAA";
+      audioRef.current.play().catch((e) => console.log("Audio unlock debug:", e));
     }
-  }, [messages, aiAudioUrl]);
+  };
 
   const generateAIResponse = async (userMessage: string) => {
     console.log("Generating AI response for message:", userMessage, "with level:", debateState?.level || "Intermediate");
@@ -195,12 +224,19 @@ const LiveDebate = () => {
           speaker: "ai",
           message: data.message,
           timestamp: new Date(),
+          audioUrl: data.audio_url || undefined,
         };
         setMessages((prev) => [...prev, aiMessage]);
         console.log("AI message added:", data.message);
-        if (data.audio_url) {
-          setAiAudioUrl(data.audio_url);
-        } else {
+        
+        if (data.audio_url && audioRef.current) {
+          console.log("Playing AI response audio automatically:", data.audio_url);
+          audioRef.current.src = data.audio_url;
+          audioRef.current.play().catch((err) => {
+            console.error("Autoplay failed or blocked by browser:", err);
+            // Autoplay policies might block it, but they can click the speaker button next to the bubble
+          });
+        } else if (!data.audio_url) {
           setError("No audio available for this response.");
         }
       } else {
@@ -231,7 +267,10 @@ const LiveDebate = () => {
       abortControllerRef.current.abort();
       setIsAISpeaking(false);
       setIsLoadingResponse(false);
-      setAiAudioUrl(null);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
+      }
       setError("AI response cancelled.");
       abortControllerRef.current = null;
     }
@@ -245,10 +284,31 @@ const LiveDebate = () => {
     }
 
     if (isListening) {
+      // Manual stop
+      const textToSend = currentTranscriptRef.current.trim();
       recognitionRef.current.stop();
-      cancelAIResponse();
+      setIsListening(false);
+      setIsUserSpeaking(false);
+
+      if (textToSend && !hasSubmittedRef.current) {
+        hasSubmittedRef.current = true;
+        const newMessage: DebateMessage = {
+          speaker: "user",
+          message: textToSend,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, newMessage]);
+        setCurrentTranscript("");
+        currentTranscriptRef.current = "";
+        generateAIResponse(textToSend);
+      }
     } else {
       try {
+        unlockAudio(); // Unlock browser audio engine on user gesture
+        hasSubmittedRef.current = false;
+        transcriptAccumulatorRef.current = "";
+        currentTranscriptRef.current = "";
+        setCurrentTranscript("");
         recognitionRef.current.start();
         setIsListening(true);
         setIsUserSpeaking(true);
@@ -262,6 +322,7 @@ const LiveDebate = () => {
 
   const handleTextSubmit = () => {
     if (textInput.trim()) {
+      unlockAudio(); // Unlock browser audio engine on user gesture
       console.log("Text input submitted:", textInput);
       const newMessage: DebateMessage = {
         speaker: "user",
@@ -329,177 +390,286 @@ const LiveDebate = () => {
   }
 
   return (
-    <div className="min-h-screen pt-16 flex flex-col">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 flex flex-col">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">
-            <span className="gradient-text">Live Debate</span>
-          </h1>
-          <p className="text-gray-300 mb-2">Topic: {debateState.topic}</p>
-          <p className="text-gray-300 mb-2">Your Position: {debateState.stance}</p>
-          <p className="text-gray-300 mb-4">Level: {debateState.level || "Intermediate"}</p>
-          <div className="flex items-center justify-center gap-2 text-lg font-semibold">
-            <Clock size={20} className="text-purple-400" />
-            <span className={timeRemaining < 60 ? "text-red-400" : "text-white"}>
-              {formatTime(timeRemaining)}
-            </span>
-          </div>
-        </div>
-
+    <div className="min-h-screen pt-20 pb-8 bg-zinc-950 flex flex-col text-zinc-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex-1 flex flex-col">
+        
         {/* Error Message */}
         {error && (
-          <div className="text-red-400 text-center mb-4">
+          <div className="mb-6 p-4 bg-red-900/20 border border-red-500/30 text-red-200 rounded-lg text-sm text-center animate-fade-in">
             {error}
           </div>
         )}
 
         {/* Loading Indicator */}
         {isLoadingResponse && (
-          <div className="text-purple-400 text-center mb-4">
-            Waiting for AI response...
+          <div className="mb-6 p-3 bg-indigo-955/40 border border-indigo-500/20 rounded-lg text-indigo-300 text-sm flex items-center justify-center gap-3 animate-pulse">
+            <span>AI Coach is processing your argument...</span>
             <button
               onClick={cancelAIResponse}
-              className="ml-2 px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg"
+              className="px-2 py-1 bg-red-600/80 hover:bg-red-650 text-white rounded text-xs font-semibold flex items-center gap-1 transition-colors"
             >
-              <X size={16} />
+              Cancel <X size={12} />
             </button>
           </div>
         )}
 
+        {/* Main 2-Column Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
-          {/* Left Side - User Profile */}
-          <div className="glass-card rounded-xl p-6 h-fit">
-            <div className="text-center">
-              <div className={`relative inline-block ${isUserSpeaking ? "animate-pulse-ring" : ""}`}>
-                <div className="w-20 h-20 rounded-full bg-gradient-to-r from-blue-400 to-purple-400 flex items-center justify-center mx-auto mb-4">
-                  <User size={32} className="text-white" />
+          
+          {/* Left Sidebar - Meta & Participant Statuses (1/3 Width) */}
+          <div className="lg:col-span-1 space-y-6 flex flex-col">
+            
+            {/* Debate Details Card */}
+            <div className="glass-card rounded-xl p-5 space-y-4">
+              <h2 className="text-lg font-bold border-b border-zinc-800 pb-3 text-white">Debate Session</h2>
+              
+              <div className="space-y-3">
+                <div>
+                  <span className="text-xs text-zinc-500 block">Topic</span>
+                  <span className="text-sm font-semibold text-zinc-200 block mt-0.5">{debateState.topic}</span>
                 </div>
-                {isUserSpeaking && (
-                  <div className="absolute inset-0 rounded-full bg-blue-400/30 animate-pulse-ring"></div>
-                )}
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-xs text-zinc-500 block">Your Stance</span>
+                    <span className={`inline-block text-xs font-bold px-2.5 py-1 rounded-full mt-1 ${
+                      debateState.stance === "Support" 
+                        ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                        : "bg-red-500/10 text-red-400 border border-red-500/20"
+                    }`}>
+                      {debateState.stance}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-zinc-500 block">Complexity Level</span>
+                    <span className="inline-block text-xs font-medium px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700/50 mt-1">
+                      {debateState.level || "Intermediate"}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-xl font-semibold mb-2">You</h3>
-              <p className="text-gray-400 text-sm">Position: {debateState.stance}</p>
+            </div>
 
-              <div className="mt-6">
+            {/* Participants Status Card */}
+            <div className="glass-card rounded-xl p-5 space-y-4 flex-1">
+              <h2 className="text-lg font-bold border-b border-zinc-800 pb-3 text-white">Debating Parties</h2>
+              
+              <div className="space-y-6 pt-2">
+                {/* User Status */}
+                <div className="flex items-center gap-4">
+                  <div className={`relative p-0.5 rounded-full ${
+                    isListening ? "ring-2 ring-emerald-500 ring-offset-2 ring-offset-zinc-950 animate-pulse" : ""
+                  }`}>
+                    <div className="w-14 h-14 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                      <User size={24} className="text-indigo-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-white">You</h4>
+                    <p className="text-xs text-zinc-500">Stance: {debateState.stance}</p>
+                    {isListening && (
+                      <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1 mt-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Speaking...
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* VS Divider */}
+                <div className="flex items-center justify-between text-zinc-700">
+                  <div className="border-t border-zinc-800/80 flex-1"></div>
+                  <span className="text-xs font-mono font-bold px-3">VS</span>
+                  <div className="border-t border-zinc-800/80 flex-1"></div>
+                </div>
+
+                {/* AI Status */}
+                <div className="flex items-center gap-4">
+                  <div className={`relative p-0.5 rounded-full ${
+                    isAISpeaking || isLoadingResponse ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-zinc-950 animate-pulse" : ""
+                  }`}>
+                    <div className="w-14 h-14 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+                      <Bot size={24} className="text-indigo-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-white">AI Coach</h4>
+                    <p className="text-xs text-zinc-500">Stance: {debateState.stance === "Support" ? "Oppose" : "Support"}</p>
+                    {(isAISpeaking || isLoadingResponse) && (
+                      <span className="text-[10px] text-indigo-400 font-semibold flex items-center gap-1 mt-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping"></span> Thinking...
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Timer and End Button Card */}
+            <div className="glass-card rounded-xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-zinc-400">Time Remaining</span>
+                <div className="flex items-center gap-1.5 text-lg font-bold">
+                  <Clock size={16} className="text-indigo-400" />
+                  <span className={timeRemaining < 60 ? "text-red-400 animate-pulse" : "text-white"}>
+                    {formatTime(timeRemaining)}
+                  </span>
+                </div>
+              </div>
+              
+              <button
+                onClick={endDebate}
+                className="w-full py-2.5 bg-red-600/90 hover:bg-red-650 text-white text-sm font-semibold rounded-lg transition-colors shadow-lg shadow-red-600/10"
+              >
+                End Debate Early
+              </button>
+            </div>
+
+          </div>
+
+          {/* Right Area - Spacious Debate Chat Arena (2/3 Width) */}
+          <div className="lg:col-span-2 glass-card rounded-xl p-6 flex flex-col h-[650px] shadow-2xl border border-zinc-800/80">
+            
+            {/* Arena Header */}
+            <div className="border-b border-zinc-800 pb-4 mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${isListening ? "bg-emerald-500 animate-pulse" : "bg-indigo-500"}`}></span>
+                <h3 className="font-bold text-white tracking-tight">Debate Arena</h3>
+              </div>
+              <span className="text-xs text-zinc-500 font-mono">
+                {messages.length} {messages.length === 1 ? "turn" : "turns"} completed
+              </span>
+            </div>
+
+            {/* Chat Messages Log */}
+            <div className="flex-1 overflow-y-auto space-y-4 pr-2 mb-4 scrollbar-thin">
+              {messages.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-zinc-500 text-center gap-2">
+                  <Bot size={48} className="text-zinc-750 mb-2" />
+                  <p className="text-zinc-300 font-semibold">Start the debate!</p>
+                  <p className="text-xs max-w-xs text-zinc-500 leading-relaxed">
+                    Click the Microphone button to record your speech, or type your opening argument in the input box below.
+                  </p>
+                </div>
+              ) : (
+                messages.map((message, index) => (
+                  <div
+                    key={index}
+                    className={`flex ${message.speaker === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[85%] p-4 rounded-xl border ${
+                        message.speaker === "user"
+                          ? "bg-indigo-600/10 border-indigo-500/20 text-indigo-100 rounded-tr-none"
+                          : "bg-zinc-900 border-zinc-800 text-zinc-100 rounded-tl-none"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-4 mb-1.5 opacity-80">
+                        <div className="flex items-center gap-2">
+                          {message.speaker === "user" ? (
+                            <User size={13} className="text-indigo-400" />
+                          ) : (
+                            <Bot size={13} className="text-zinc-400" />
+                          )}
+                          <span className="text-[10px] font-bold uppercase tracking-wider">
+                            {message.speaker === "user" ? "You" : "AI Coach"}
+                          </span>
+                        </div>
+                        
+                        {message.speaker === "ai" && message.audioUrl && (
+                          <button
+                            onClick={() => {
+                              if (audioRef.current && message.audioUrl) {
+                                console.log("Manually playing audio:", message.audioUrl);
+                                audioRef.current.src = message.audioUrl;
+                                audioRef.current.play().catch((err: any) => {
+                                  console.error("Manual audio playback error:", err);
+                                  if (err.name === "NotSupportedError" || err.message?.includes("source") || err.message?.includes("supported")) {
+                                    setError("Audio file not found on the server (404). If you are testing the deployed app, please push the code changes to GitHub first so Render updates to the new in-memory audio engine.");
+                                  } else {
+                                    setError("Unable to play audio. Check speaker settings or browser permissions.");
+                                  }
+                                });
+                              }
+                            }}
+                            className="p-1 rounded bg-zinc-800 hover:bg-zinc-700 text-indigo-400 hover:text-indigo-300 transition-colors"
+                            title="Play/Replay Audio"
+                          >
+                            <Volume2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.message}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Interim Live Transcript Indicator */}
+            {currentTranscript && (
+              <div className="mb-4 p-3 bg-indigo-600/10 border border-indigo-500/20 rounded-lg animate-pulse">
+                <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider mb-0.5">
+                  Speaking / Transcribing...
+                </p>
+                <p className="text-zinc-200 text-sm leading-relaxed">{currentTranscript}</p>
+              </div>
+            )}
+
+            {/* Toolbar: Mic & Fallback text input */}
+            <div className="border-t border-zinc-800 pt-4 mt-auto">
+              <div className="flex items-center gap-3">
+                
+                {/* Voice Microphone Toggle Button */}
                 <button
                   onClick={toggleListening}
-                  disabled={!recognitionRef.current}
-                  className={`w-full px-4 py-3 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                  disabled={!recognitionRef.current || isLoadingResponse}
+                  title={isListening ? "Stop recording speech" : "Record your speech"}
+                  className={`p-3.5 rounded-lg flex items-center justify-center transition-all duration-200 ${
                     isListening
-                      ? "bg-red-500 hover:bg-red-600 text-white"
-                      : "bg-green-500 hover:bg-green-600 text-white"
-                  } ${!recognitionRef.current ? "opacity-50 cursor-not-allowed" : ""}`}
+                      ? "bg-rose-600 hover:bg-rose-700 text-white animate-pulse"
+                      : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/40"
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {isListening ? <MicOff size={20} /> : <Mic size={20} />}
-                  {isListening ? "Stop Recording" : "Start Recording"}
                 </button>
-              </div>
 
-              {/* Fallback Text Input */}
-              <div className="mt-4">
+                {/* Text Fallback input field */}
                 <input
                   type="text"
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
-                  placeholder="Type your argument (fallback)"
-                  className="w-full p-2 rounded-lg bg-white/10 text-white"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !isLoadingResponse) {
+                      handleTextSubmit();
+                    }
+                  }}
+                  disabled={isLoadingResponse}
+                  placeholder={
+                    isListening
+                      ? "I am listening... stop recording or pause when done."
+                      : "Type your argument here and click Send..."
+                  }
+                  className="flex-1 p-3.5 rounded-lg bg-zinc-900 border border-zinc-800/80 text-white placeholder-zinc-500 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-sm transition-all"
                 />
+
+                {/* Send Button */}
                 <button
                   onClick={handleTextSubmit}
-                  className="mt-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg w-full"
+                  disabled={!textInput.trim() || isLoadingResponse}
+                  title="Send written argument"
+                  className="p-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Submit
+                  <Send size={18} />
                 </button>
+
               </div>
-
-              {currentTranscript && (
-                <div className="mt-4 p-3 bg-blue-500/20 rounded-lg">
-                  <p className="text-sm text-blue-300">Listening...</p>
-                  <p className="text-white">{currentTranscript}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right Side - AI Profile */}
-          <div className="glass-card rounded-xl p-6 h-fit">
-            <div className="text-center">
-              <div className={`relative inline-block ${isAISpeaking ? "animate-pulse-ring" : ""}`}>
-                <div className="w-20 h-20 rounded-full bg-gradient-to-r from-purple-400 to-pink-400 flex items-center justify-center mx-auto mb-4">
-                  <Bot size={32} className="text-white" />
-                </div>
-                {isAISpeaking && (
-                  <div className="absolute inset-0 rounded-full bg-purple-400/30 animate-pulse-ring"></div>
-                )}
-              </div>
-              <h3 className="text-xl font-semibold mb-2">AI Coach</h3>
-              {isAISpeaking && (
-                <div className="mt-4 flex justify-center">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce-dots"></div>
-                    <div
-                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce-dots"
-                      style={{ animationDelay: "0.2s" }}
-                    ></div>
-                    <div
-                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce-dots"
-                      style={{ animationDelay: "0.4s" }}
-                    ></div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Debate Transcript */}
-          <div className="glass-card rounded-xl p-6 flex flex-col">
-            <h3 className="text-xl font-semibold mb-4">Debate Between You and AI</h3>
-
-            <div className="flex-1 overflow-y-auto space-y-4 max-h-96">
-              {messages.map((message, index) => (
-                <div
-                  key={index}
-                  className={`flex ${message.speaker === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[80%] p-3 rounded-lg ${
-                      message.speaker === "user"
-                        ? "bg-blue-500/20 text-blue-100"
-                        : "bg-purple-500/20 text-purple-100"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      {message.speaker === "user" ? <User size={16} /> : <Bot size={16} />}
-                      <span className="text-sm font-medium">
-                        {message.speaker === "user" ? "You" : "AI"}
-                      </span>
-                    </div>
-                    <p className="text-sm">{message.message}</p>
-                  </div>
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
             </div>
 
-            {messages.length === 0 && (
-              <div className="flex-1 flex items-center justify-center text-gray-400">
-                <p>Start recording or type to begin the debate!</p>
-              </div>
-            )}
           </div>
+
         </div>
 
-        {/* End Debate Button */}
-        <div className="text-center mt-8">
-          <button
-            onClick={endDebate}
-            className="px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors"
-          >
-            End Debate Early
-          </button>
-        </div>
       </div>
     </div>
   );

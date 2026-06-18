@@ -37,39 +37,39 @@ const Login = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-900">
-      <div className="w-full max-w-md p-8 bg-gray-800 rounded-lg shadow-lg">
+    <div className="flex min-h-screen items-center justify-center bg-zinc-950">
+      <div className="w-full max-w-md p-8 bg-zinc-900 border border-zinc-800 rounded-lg shadow-xl">
         <h2 className="text-2xl font-bold text-white mb-6 text-center">Login</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="email" className="text-gray-300">Email</Label>
+            <Label htmlFor="email" className="text-zinc-300">Email</Label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="bg-gray-700 text-white border-gray-600"
+              className="bg-zinc-850 text-white border-zinc-800 focus:border-indigo-500 focus:ring-indigo-500"
               required
             />
           </div>
           <div>
-            <Label htmlFor="password" className="text-gray-300">Password</Label>
+            <Label htmlFor="password" className="text-zinc-300">Password</Label>
             <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="bg-gray-700 text-white border-gray-600"
+              className="bg-zinc-850 text-white border-zinc-800 focus:border-indigo-500 focus:ring-indigo-500"
               required
             />
           </div>
-          <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700">
+          <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm transition-colors">
             Login
           </Button>
         </form>
-        <p className="text-gray-400 text-center mt-4">
+        <p className="text-zinc-400 text-center mt-4">
           Don't have an account?{" "}
-          <a href="/signup" className="text-purple-400 hover:underline">
+          <a href="/signup" className="text-indigo-400 hover:text-indigo-300 hover:underline">
             Sign up
           </a>
         </p>

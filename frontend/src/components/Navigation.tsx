@@ -61,20 +61,20 @@ const Navigation = () => {
   }, [navigate, toast]);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 bg-gray-900/80 backdrop-blur-md z-50">
+    <nav className="fixed top-0 left-0 right-0 bg-zinc-950/80 border-b border-zinc-800/80 backdrop-blur-md z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
         <div className="flex items-center gap-6">
           <NavLink to="/" className="text-2xl font-bold text-white">
             DebateAI
           </NavLink>
           <div className="hidden md:flex gap-4">
-            <NavLink to="/" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Home</NavLink>
+            <NavLink to="/" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-indigo-400" : ""}`}>Home</NavLink>
             {isLoggedIn ? (
-              <NavLink to="/topics" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Debate</NavLink>
+              <NavLink to="/topics" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-indigo-400" : ""}`}>Debate</NavLink>
             ) : (
               <>
-                <NavLink to="/login" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Login</NavLink>
-                <NavLink to="/signup" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Signup</NavLink>
+                <NavLink to="/login" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-indigo-400" : ""}`}>Login</NavLink>
+                <NavLink to="/signup" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-indigo-400" : ""}`}>Signup</NavLink>
               </>
             )}
           </div>
@@ -92,15 +92,15 @@ const Navigation = () => {
               <Menu size={24} />
             </Button>
           </SheetTrigger>
-          <SheetContent className="bg-gray-800 text-white border-gray-700">
+          <SheetContent className="bg-zinc-900 text-white border-zinc-800">
             <div className="flex flex-col gap-4 mt-4">
-              <NavLink to="/" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Home</NavLink>
+              <NavLink to="/" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-indigo-400" : ""}`}>Home</NavLink>
               {isLoggedIn ? (
-                <NavLink to="/topics" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Debate</NavLink>
+                <NavLink to="/topics" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-indigo-400" : ""}`}>Debate</NavLink>
               ) : (
                 <>
-                  <NavLink to="/login" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Login</NavLink>
-                  <NavLink to="/signup" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-purple-400" : ""}`}>Signup</NavLink>
+                  <NavLink to="/login" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-indigo-400" : ""}`}>Login</NavLink>
+                  <NavLink to="/signup" className={({ isActive }) => `text-gray-300 hover:text-white transition-colors ${isActive ? "text-indigo-400" : ""}`}>Signup</NavLink>
                 </>
               )}
             </div>
